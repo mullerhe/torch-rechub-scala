@@ -1,0 +1,52 @@
+package torchrec.models.ranking
+
+import torchrec.basic.features._
+import torchrec.basic.layers._
+
+import org.bytedeco.pytorch._
+import org.bytedeco.pytorch.global.torch
+
+/**
+ * Deep & Cross Network
+ * Reference: Stanford/Huawei
+ */
+class DCN(
+  features: List[Feature],
+  embedDim: Int = 8,
+  numCrossLayers: Int = 3,
+  mlpDims: List[Long] = List(256L, 128L),
+  dropout: Float = 0.2f,
+  device: String = "cpu"
+) extends Module {
+
+  private val embeddingLayer = new EmbeddingLayer(features, embedDim, device)
+  register_module("embedding", embeddingLayer)
+
+  private val sparseDim = features.collect { case f: SparseFeature => 1 }.size * embedDim
+
+  // Cross network
+  private val crossNet = new CrossNetwork(sparseDim, numCrossLayers, device)
+  register_module("crossNet", crossNet)
+
+  // Deep network
+  private val mlp = new MLP(sparseDim, mlpDims.map(_.toLong), 1, "relu", dropout, device = device)
+  register_module("mlp", mlp)
+
+  def forward(
+    sparseFeats: Map[String, Tensor],
+    denseFeats: Map[String, Tensor] = Map.empty
+  ): Tensor = {
+    val embeddings = embeddingLayer.forward(sparseFeats)
+
+    // Cross network
+    val crossOut = crossNet.forward(embeddings)
+
+    // Deep network
+    val deepOut = mlp.forward(embeddings)
+
+    // Combine
+    val logits = crossOut.add(deepOut)
+    logits.sigmoid()
+    logits
+  }
+}

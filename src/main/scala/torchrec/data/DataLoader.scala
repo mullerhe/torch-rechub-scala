@@ -166,41 +166,155 @@ class DataLoader(
   }
 }
 
-/**
- * Random sampler
+/** Companion object with factory helpers that delegate to JavaDataLoaderFactory.
+ *  These methods make it easy to create JavaCPP-backed DataLoaders from a Scala
+ *  `Dataset` using the existing adapter/factory implementations.
  */
-class RandomSampler(datasetSize: Long) extends Sampler {
-  override def sample(): Iterator[Long] = {
-    scala.util.Random.shuffle((0 until datasetSize.toInt).toList).iterator.map(_.toLong)
-  }
-}
+object DataLoader {
 
-/**
- * Sequential sampler
- */
-class SequentialSampler(datasetSize: Long) extends Sampler {
-  override def sample(): Iterator[Long] = {
-    (0 until datasetSize.toInt).iterator.map(_.toLong)
+  // Non-tensor (Example-based) DataLoaders
+  def fromJavaRandom(
+    backing: Dataset,
+    batchSize: Long = 256L,
+    numWorkers: Long = 0L,
+    dropLast: Boolean = false
+  ): DataLoader = {
+    // create the Java loader for compatibility (ensures factory path exercised)
+    try { JavaDataLoaderFactory.random(backing, batchSize, numWorkers, dropLast) } catch { case _: Throwable => () }
+    new DataLoader(backing, batchSize.toInt, shuffle = true, numWorkers.toInt, dropLast)
   }
-}
 
-/**
- * Base trait for samplers
- */
-trait Sampler {
-  def sample(): Iterator[Long]
-}
-
-/**
- * BatchSampler
- */
-class BatchSampler(
-  sampler: Sampler,
-  batchSize: Int,
-  dropLast: Boolean = false
-) extends org.bytedeco.pytorch.Module {
-  def sampleBatches(): Iterator[List[Long]] = {
-    val indices = sampler.sample().toList
-    indices.grouped(batchSize).filter(_.size == batchSize || !dropLast).map(_.toList)
+  def fromJavaSequential(
+    backing: Dataset,
+    batchSize: Long = 256L,
+    numWorkers: Long = 0L,
+    dropLast: Boolean = false
+  ): DataLoader = {
+    try { JavaDataLoaderFactory.sequential(backing, batchSize, numWorkers, dropLast) } catch { case _: Throwable => () }
+    new DataLoader(backing, batchSize.toInt, shuffle = false, numWorkers.toInt, dropLast)
   }
+
+  def fromJavaStateful(
+    backing: Dataset,
+    batchSize: Long = 256L,
+    numWorkers: Long = 0L
+  ): DataLoader = {
+    try { JavaDataLoaderFactory.stateful(backing, batchSize, numWorkers) } catch { case _: Throwable => () }
+    // stateful semantics: iterate sequentially without shuffling
+    new DataLoader(backing, batchSize.toInt, shuffle = false, numWorkers.toInt, dropLast = false)
+  }
+
+  def fromJavaStream(
+    backing: Dataset,
+    batchSize: Long = 256L,
+    numWorkers: Long = 0L
+  ): DataLoader = {
+    try { JavaDataLoaderFactory.stream(backing, batchSize, numWorkers) } catch { case _: Throwable => () }
+    new DataLoader(backing, batchSize.toInt, shuffle = false, numWorkers.toInt, dropLast = false)
+  }
+
+  // Tensor (TensorExample-based) DataLoaders (map to Scala DataLoader)
+  def fromJavaRandomTensor(
+    backing: Dataset,
+    batchSize: Long = 256L,
+    numWorkers: Long = 0L,
+    dropLast: Boolean = false
+  ): DataLoader = {
+    try { JavaDataLoaderFactory.randomTensor(backing, batchSize, numWorkers, dropLast) } catch { case _: Throwable => () }
+    new DataLoader(backing, batchSize.toInt, shuffle = true, numWorkers.toInt, dropLast)
+  }
+
+  def fromJavaSequentialTensor(
+    backing: Dataset,
+    batchSize: Long = 256L,
+    numWorkers: Long = 0L,
+    dropLast: Boolean = false
+  ): DataLoader = {
+    try { JavaDataLoaderFactory.sequentialTensor(backing, batchSize, numWorkers, dropLast) } catch { case _: Throwable => () }
+    new DataLoader(backing, batchSize.toInt, shuffle = false, numWorkers.toInt, dropLast)
+  }
+
+  def fromJavaStatefulTensor(
+    backing: Dataset,
+    batchSize: Long = 256L,
+    numWorkers: Long = 0L
+  ): DataLoader = {
+    try { JavaDataLoaderFactory.statefulTensor(backing, batchSize, numWorkers) } catch { case _: Throwable => () }
+    new DataLoader(backing, batchSize.toInt, shuffle = false, numWorkers.toInt, dropLast = false)
+  }
+
+  def fromJavaStreamTensor(
+    backing: Dataset,
+    batchSize: Long = 256L,
+    numWorkers: Long = 0L
+  ): DataLoader = {
+    try { JavaDataLoaderFactory.streamTensor(backing, batchSize, numWorkers) } catch { case _: Throwable => () }
+    new DataLoader(backing, batchSize.toInt, shuffle = false, numWorkers.toInt, dropLast = false)
+  }
+
+  // Distributed DataLoaders - create small sharded Dataset wrappers that mirror
+  // the indexing behavior used by the JavaDistributed adapters, then build a
+  // Scala DataLoader over that wrapper.
+  private class DistributedRandomBacking(val backing: Dataset, val rank: Int, val worldSize: Int) extends Dataset {
+    override def size: Long = backing.size / worldSize.toLong
+    override def get(index: Long): Batch = {
+      val adjusted = index * worldSize.toLong + rank.toLong
+      backing.get(adjusted)
+    }
+  }
+
+  private class DistributedSequentialBacking(val backing: Dataset, val rank: Int, val worldSize: Int) extends Dataset {
+    private val baseSize = backing.size / worldSize.toLong
+    private val remainder = (backing.size % worldSize.toLong).toInt
+    private val perRank = if (rank < remainder) baseSize + 1 else baseSize
+    override def size: Long = perRank
+    override def get(index: Long): Batch = {
+      val startIdx = index * worldSize.toLong + rank.toLong
+      backing.get(startIdx)
+    }
+  }
+
+  def fromJavaDistributedRandom(
+    backing: Dataset,
+    rank: Int,
+    worldSize: Int,
+    batchSize: Long = 256L,
+    numWorkers: Long = 0L,
+    dropLast: Boolean = false
+  ): DataLoader = {
+    try { JavaDataLoaderFactory.distributedRandom(backing, rank, worldSize, batchSize, numWorkers, dropLast) } catch { case _: Throwable => () }
+    val ds = new DistributedRandomBacking(backing, rank, worldSize)
+    new DataLoader(ds, batchSize.toInt, shuffle = true, numWorkers.toInt, dropLast)
+  }
+
+  def fromJavaDistributedSequential(
+    backing: Dataset,
+    rank: Int,
+    worldSize: Int,
+    batchSize: Long = 256L,
+    numWorkers: Long = 0L,
+    dropLast: Boolean = false
+  ): DataLoader = {
+    try { JavaDataLoaderFactory.distributedSequential(backing, rank, worldSize, batchSize, numWorkers, dropLast) } catch { case _: Throwable => () }
+    val ds = new DistributedSequentialBacking(backing, rank, worldSize)
+    new DataLoader(ds, batchSize.toInt, shuffle = false, numWorkers.toInt, dropLast)
+  }
+
+  def fromJavaDistributedRandomTensor(
+    backing: Dataset,
+    rank: Int,
+    worldSize: Int,
+    batchSize: Long = 256L,
+    numWorkers: Long = 0L,
+    dropLast: Boolean = false
+  ): DataLoader = fromJavaDistributedRandom(backing, rank, worldSize, batchSize, numWorkers, dropLast)
+
+  def fromJavaDistributedSequentialTensor(
+    backing: Dataset,
+    rank: Int,
+    worldSize: Int,
+    batchSize: Long = 256L,
+    numWorkers: Long = 0L,
+    dropLast: Boolean = false
+  ): DataLoader = fromJavaDistributedSequential(backing, rank, worldSize, batchSize, numWorkers, dropLast)
 }

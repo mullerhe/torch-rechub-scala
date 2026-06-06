@@ -13,8 +13,123 @@ import torchrec.Implicits.tensor
 
 /**
  * Data generator for creating synthetic datasets
+ * Includes realistic data generators simulating MovieLens, Criteo, Census-Income
  */
 object DataGenerator {
+
+  /**
+   * Generate MovieLens-style matching data
+   */
+  def generateMovieLensData(
+    numSamples: Int = 100000,
+    numUsers: Int = 6040,
+    numMovies: Int = 3952,
+    trainRatio: Float = 0.8f,
+    seed: Int = 42
+  ): (Dataset, Dataset, Dataset) = {
+    val random = new Random(seed)
+    println(s"Generating MovieLens-style data ($numSamples samples)...")
+
+    // User and movie IDs
+    val userIds = Array.fill(numSamples)(random.nextInt(numUsers).toFloat)
+    val movieIds = Array.fill(numSamples)(random.nextInt(numMovies).toFloat)
+
+    // Ratings (sparse: ~20% have ratings)
+    val ratings = Array.fill(numSamples)(if (random.nextFloat() < 0.2f) 1.0f else 0.0f)
+
+    val userT = tensor(userIds, Array(numSamples.toLong)).toType(ScalarType.Long)
+    val movieT = tensor(movieIds, Array(numSamples.toLong)).toType(ScalarType.Long)
+    val ratingT = tensor(ratings, Array(numSamples.toLong))
+
+    // Split
+    val trainSize = (numSamples * trainRatio).toInt
+    val valSize = ((numSamples - trainSize) / 2).toInt
+
+    val trainSparse = Map("user_id" -> userT.narrow(0, 0, trainSize), "movie_id" -> movieT.narrow(0, 0, trainSize))
+    val trainDataset = new torchrec.data.TensorDataset(trainSparse, Map.empty, Some(ratingT.narrow(0, 0, trainSize)))
+
+    val valSparse = Map("user_id" -> userT.narrow(0, trainSize, valSize), "movie_id" -> movieT.narrow(0, trainSize, valSize))
+    val valDataset = new torchrec.data.TensorDataset(valSparse, Map.empty, Some(ratingT.narrow(0, trainSize, valSize)))
+
+    val testSize = numSamples - trainSize - valSize
+    val testSparse = Map("user_id" -> userT.narrow(0, trainSize + valSize, testSize), "movie_id" -> movieT.narrow(0, trainSize + valSize, testSize))
+    val testDataset = new torchrec.data.TensorDataset(testSparse, Map.empty, Some(ratingT.narrow(0, trainSize + valSize, testSize)))
+
+    println(s"  Train: ${trainDataset.size}, Val: ${valDataset.size}, Test: ${testDataset.size}")
+    (trainDataset, valDataset, testDataset)
+  }
+
+  /**
+   * Generate Census-Income-style classification data
+   */
+  def generateCensusData(
+    numSamples: Int = 50000,
+    trainRatio: Float = 0.8f,
+    seed: Int = 42
+  ): (Dataset, Dataset, Dataset) = {
+    val random = new Random(seed)
+    println(s"Generating Census-Income-style data ($numSamples samples)...")
+
+    // Demographics
+    val age = Array.fill(numSamples)((random.nextInt(60) + 17).toFloat)
+    val workclass = Array.fill(numSamples)(random.nextInt(6).toFloat)
+    val education = Array.fill(numSamples)(random.nextInt(9).toFloat)
+    val marital = Array.fill(numSamples)(random.nextInt(5).toFloat)
+    val occupation = Array.fill(numSamples)(random.nextInt(9).toFloat)
+    val sex = Array.fill(numSamples)(random.nextInt(2).toFloat)
+
+    // Income (>50K ~ 25%)
+    val income = Array.fill(numSamples) {
+      if (random.nextFloat() < 0.25f) 1.0f else 0.0f
+    }
+
+    val ageT = tensor(age, Array(numSamples.toLong))
+    val workclassT = tensor(workclass, Array(numSamples.toLong)).toType(ScalarType.Long)
+    val educationT = tensor(education, Array(numSamples.toLong)).toType(ScalarType.Long)
+    val maritalT = tensor(marital, Array(numSamples.toLong)).toType(ScalarType.Long)
+    val occupationT = tensor(occupation, Array(numSamples.toLong)).toType(ScalarType.Long)
+    val sexT = tensor(sex, Array(numSamples.toLong)).toType(ScalarType.Long)
+    val incomeT = tensor(income, Array(numSamples.toLong))
+
+    val trainSize = (numSamples * trainRatio).toInt
+    val valSize = ((numSamples - trainSize) / 2).toInt
+
+    val trainSparse = Map(
+      "workclass" -> workclassT.narrow(0, 0, trainSize),
+      "education" -> educationT.narrow(0, 0, trainSize),
+      "marital" -> maritalT.narrow(0, 0, trainSize),
+      "occupation" -> occupationT.narrow(0, 0, trainSize),
+      "sex" -> sexT.narrow(0, 0, trainSize)
+    )
+    val trainDense = Map("age" -> ageT.narrow(0, 0, trainSize))
+    val trainDataset = new torchrec.data.TensorDataset(trainSparse, trainDense, Some(incomeT.narrow(0, 0, trainSize)))
+
+    val valSparse = Map(
+      "workclass" -> workclassT.narrow(0, trainSize, valSize),
+      "education" -> educationT.narrow(0, trainSize, valSize),
+      "marital" -> maritalT.narrow(0, trainSize, valSize),
+      "occupation" -> occupationT.narrow(0, trainSize, valSize),
+      "sex" -> sexT.narrow(0, trainSize, valSize)
+    )
+    val valDense = Map("age" -> ageT.narrow(0, trainSize, valSize))
+    val valDataset = new torchrec.data.TensorDataset(valSparse, valDense, Some(incomeT.narrow(0, trainSize, valSize)))
+
+    val testSize = numSamples - trainSize - valSize
+    val testSparse = Map(
+      "workclass" -> workclassT.narrow(0, trainSize + valSize, testSize),
+      "education" -> educationT.narrow(0, trainSize + valSize, testSize),
+      "marital" -> maritalT.narrow(0, trainSize + valSize, testSize),
+      "occupation" -> occupationT.narrow(0, trainSize + valSize, testSize),
+      "sex" -> sexT.narrow(0, trainSize + valSize, testSize)
+    )
+    val testDense = Map("age" -> ageT.narrow(0, trainSize + valSize, testSize))
+    val testDataset = new torchrec.data.TensorDataset(testSparse, testDense, Some(incomeT.narrow(0, trainSize + valSize, testSize)))
+
+    val posRate = income.count(_ == 1.0f) * 100.0f / numSamples
+    println(s"  Positive rate: ${posRate}%")
+    println(s"  Train: ${trainDataset.size}, Val: ${valDataset.size}, Test: ${testDataset.size}")
+    (trainDataset, valDataset, testDataset)
+  }
 
   /**
    * Generate ranking dataset with sparse features

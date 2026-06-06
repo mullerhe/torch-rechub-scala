@@ -67,7 +67,7 @@ object JavaDatasetAdapters {
         }.getOrElse(Array(0.0f))
       }.toArray
       if (vals.isEmpty) {
-        torch.zeros(Array(1L): _*)
+        torch.zeros(Array(1L)*)
       } else {
         val ft = torchrec.Implicits.tensor(vals, Array(vals.length.toLong))
         ft.toType(ScalarType.Long)
@@ -130,7 +130,7 @@ object JavaDatasetAdapters {
         }.getOrElse(Array(0.0f))
       }.toArray
       if (vals.isEmpty) {
-        torch.zeros(Array(1L): _*)
+        torch.zeros(Array(1L)*)
       } else {
         val ft = torchrec.Implicits.tensor(vals, Array(vals.length.toLong))
         ft.toType(ScalarType.Long)
@@ -187,7 +187,7 @@ object JavaDatasetAdapters {
         }.getOrElse(Array(0.0f))
       }.toArray
       if (vals.isEmpty) {
-        torch.zeros(Array(1L): _*)
+        torch.zeros(Array(1L)*)
       } else {
         val ft = torchrec.Implicits.tensor(vals, Array(vals.length.toLong))
         ft.toType(ScalarType.Long)

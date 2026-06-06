@@ -364,8 +364,14 @@ class MatchingDataset(
 
     Batch(
       userFeatures.map { case (k, v) => k -> safeSelect(v, index) },
-      itemFeatures = itemFeatures.map { case (k, v) => k -> safeSelect(v, index) },
-      labels = labels.map(l => safeSelect(l, index))
+      Map.empty,
+      Map.empty,
+      labels.map(l => safeSelect(l, index)),
+      None,
+      None,
+      None,
+      None,
+      itemFeatures.map { case (k, v) => k -> safeSelect(v, index) }
     )
   }
 

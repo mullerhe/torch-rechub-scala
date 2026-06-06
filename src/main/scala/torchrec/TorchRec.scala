@@ -157,20 +157,35 @@ object TorchRec {
   def toLong(x: Tensor): Long = x.item().toLong
 
   def toFloatArray(x: Tensor): Array[Float] = {
-    if (x.is_contiguous()) {
-      val ptr = x.data_ptr().asByteBuffer()
-      val size = x.numel().toInt
-      val result = new Array[Float](size)
-      var i = 0
-      while (i < size) {
-        result(i) = ptr.getFloat(i * 4)
-        i += 1
-      }
-      result
-    } else {
-      val cloned = x.clone()
-      toFloatArray(cloned)
+    val size = x.numel().toInt
+    val result = new Array[Float](size)
+    val contig = if (x.is_contiguous()) x else x.contiguous()
+    val dim0 = contig.size(0).toInt
+    val dim1 = if (contig.dim().toInt > 1) contig.size(1).toInt else size
+    var i = 0
+    while (i < size) {
+      val row = i / dim1
+      val col = i % dim1
+      result(i) = contig.select(0, row).select(0, col).item().toFloat
+      i += 1
     }
+    result
+  }
+
+  def toLongArray(x: Tensor): Array[Long] = {
+    val size = x.numel().toInt
+    val result = new Array[Long](size)
+    val contig = if (x.is_contiguous()) x else x.contiguous()
+    val dim0 = contig.size(0).toInt
+    val dim1 = if (contig.dim().toInt > 1) contig.size(1).toInt else size
+    var i = 0
+    while (i < size) {
+      val row = i / dim1
+      val col = i % dim1
+      result(i) = contig.select(0, row).select(0, col).item().toLong
+      i += 1
+    }
+    result
   }
 
   type Tensor = org.bytedeco.pytorch.Tensor

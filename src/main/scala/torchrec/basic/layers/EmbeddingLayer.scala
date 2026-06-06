@@ -175,12 +175,6 @@ class EmbeddingLayer(
     }
   }
 
-  /** Get all parameters - not available in JavaCPP */
-  override def parameters(): org.bytedeco.pytorch.TensorVector = {
-    // Return empty vector as parameters() is not available in JavaCPP
-    new org.bytedeco.pytorch.TensorVector(0)
-  }
-
   def to(device: String): this.type = {
     // Device transfer not supported in JavaCPP - just return this
     this

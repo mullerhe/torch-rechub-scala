@@ -15,7 +15,8 @@ resolvers ++= Seq(
 )
 updateOptions := updateOptions.value.withLatestSnapshots(true)
 resolvers += "aliyunmaven" at "https://maven.aliyun.com/repository/public"
-
+// Source: https://mvnrepository.com/artifact/com.lihaoyi/requests
+libraryDependencies += "com.lihaoyi" %% "requests" % "0.9.3"
 lazy val root = (project in file("."))
   .settings(
     name := "torch-rechub-scala",
@@ -122,6 +123,9 @@ libraryDependencies ++= Seq(
 
   // Gson
   "com.google.code.gson" % "gson" % "2.14.0",
+
+  // HTTP client
+  "com.lihaoyi" %% "requests" % "0.9.3",
 
   // ScalaTest
   "org.scalatest" %% "scalatest" % "3.2.18"

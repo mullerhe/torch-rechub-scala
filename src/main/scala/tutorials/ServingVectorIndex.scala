@@ -1,32 +1,39 @@
 package tutorials
 
 import org.bytedeco.pytorch.global.torch
-
-import torchrec.serving._
+import org.bytedeco.pytorch.global.torch.ScalarType
+import torchrec.serving.*
 import torchrec.TorchRec.{toFloatArray, toLongArray}
+import torchrec.utils.DeviceSupport
 
 /**
- * Tutorial: Vector Indexing and Serving
+ * Tutorial: Vector Indexing and Serving (CUDA version)
  */
 object ServingVectorIndex {
 
   def main(args: Array[String]): Unit = {
+    // Set CUDA device before any tensor allocation
+    DeviceSupport.setDevice(DeviceSupport.DeviceType.CUDA)
+    val device = DeviceSupport.backend
+    println(s"[DeviceSupport] Active device: $device")
+
     println("=" * 70)
-    println("Vector Indexing Tutorial")
+    println("Vector Indexing Tutorial (CUDA)")
     println("=" * 70)
 
-    // Generate sample embeddings
+    // Generate sample embeddings on CUDA
     val n = 1000
     val dim = 64
-    println(s"\n1. Generating $n random embeddings (dim=$dim)...")
-    val opts = new org.bytedeco.pytorch.TensorOptions()
+    println(s"\n1. Generating $n random embeddings (dim=$dim) on $device...")
+    val opts = DeviceSupport.floatOpts()
     val embeddings = torch.randn(Array(n.toLong, dim.toLong), opts)
+    println(s"  Embeddings device: ${embeddings.device()}, shape: ${embeddings.sizes().vec().get().mkString("x")}")
 
     // Test VectorIndexer (brute-force)
     println("\n2. Testing VectorIndexer (brute-force)...")
     val vectorBuilder = new VectorIndexerBuilder(IndexMetric.L2)
     val vectorIndexer = vectorBuilder.from_embeddings(embeddings)
-    val queryVec = embeddings.select(0, 0).unsqueeze(0)
+    val queryVec = embeddings.select(0, 0).unsqueeze(0).to(new org.bytedeco.pytorch.Device(device),ScalarType.Float)
     val vectorResult = vectorIndexer.query(queryVec, topK = 5)
     val idsVec = toLongArray(vectorResult._1)
     val distsVec = toFloatArray(vectorResult._2)

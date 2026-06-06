@@ -9,64 +9,31 @@ import scala.language.implicitConversions
 
 object Implicits {
   def tensor(data: Array[Float], sizes: Array[Long]): Tensor = {
-    val ptr = new FloatPointer(data.length)
-    var i = 0
-    while (i < data.length) {
-      ptr.put(i, data(i))
-      i += 1
-    }
-    val opts = new TensorOptions()
-    opts.dtype().put(ScalarType.Float)
-    try {
-      opts.device().put(new org.bytedeco.pytorch.Device("cpu"))
-    } catch {
-      case _: Throwable =>
-    }
-    torch.from_blob(ptr, sizes, null.asInstanceOf[org.bytedeco.pytorch.PointerConsumer], opts).clone()
+    val flat = torch.tensor(data, new TensorOptions().dtype(new ScalarTypeOptional(ScalarType.Float)))
+    if (sizes.length == 1 && sizes(0) == data.length) flat
+    else flat.reshape(sizes: _*)
   }
 
-  def zeros(sizes: Array[Long]): Tensor = torch.zeros(sizes, null.asInstanceOf[TensorOptions])
-  def ones(sizes: Array[Long]): Tensor = torch.ones(sizes, null.asInstanceOf[TensorOptions])
-  def randn(sizes: Array[Long]): Tensor = torch.randn(sizes, null.asInstanceOf[TensorOptions])
-  def rand(sizes: Array[Long]): Tensor = torch.rand(sizes, null.asInstanceOf[TensorOptions])
+  def zeros(sizes: Array[Long]): Tensor =
+    torch.zeros(sizes, new TensorOptions().dtype(new ScalarTypeOptional(ScalarType.Float)))
+  def ones(sizes: Array[Long]): Tensor =
+    torch.ones(sizes, new TensorOptions().dtype(new ScalarTypeOptional(ScalarType.Float)))
+  def randn(sizes: Array[Long]): Tensor =
+    torch.randn(sizes, new TensorOptions().dtype(new ScalarTypeOptional(ScalarType.Float)))
+  def rand(sizes: Array[Long]): Tensor =
+    torch.rand(sizes, new TensorOptions().dtype(new ScalarTypeOptional(ScalarType.Float)))
 
   def longTensor(data: Array[Long]): Tensor = {
-    val ptr = new LongPointer(data.length)
-    var i = 0
-    while (i < data.length) {
-      ptr.put(i, data(i))
-      i += 1
-    }
-    val sizesArr = new Array[Long](1)
-    sizesArr(0) = data.length.toLong
-    val opts = new TensorOptions()
-    opts.dtype().put(ScalarType.Long)
-    try {
-      opts.device().put(new org.bytedeco.pytorch.Device("cpu"))
-    } catch {
-      case _: Throwable =>
-    }
-    torch.from_blob(ptr, sizesArr, null.asInstanceOf[org.bytedeco.pytorch.PointerConsumer], opts).clone()
+    val n = data.length
+    val f = data.map(_.toFloat)
+    val flat = torch.tensor(f, new TensorOptions().dtype(new ScalarTypeOptional(ScalarType.Float)))
+    val t = flat.toType(ScalarType.Long)
+    flat.close()
+    t
   }
 
-  def floatTensor(data: Array[Float]): Tensor = {
-    val ptr = new FloatPointer(data.length)
-    var i = 0
-    while (i < data.length) {
-      ptr.put(i, data(i))
-      i += 1
-    }
-    val sizesArr = new Array[Long](1)
-    sizesArr(0) = data.length.toLong
-    val opts = new TensorOptions()
-    opts.dtype().put(ScalarType.Float)
-    try {
-      opts.device().put(new org.bytedeco.pytorch.Device("cpu"))
-    } catch {
-      case _: Throwable =>
-    }
-    torch.from_blob(ptr, sizesArr, null.asInstanceOf[org.bytedeco.pytorch.PointerConsumer], opts).clone()
-  }
+  def floatTensor(data: Array[Float]): Tensor =
+    torch.tensor(data, new TensorOptions().dtype(new ScalarTypeOptional(ScalarType.Float)))
 
   def toTensorVector(tensors: Seq[Tensor]): TensorVector = {
     val vec = new TensorVector(tensors.size.toLong)

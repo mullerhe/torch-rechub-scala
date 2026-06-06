@@ -13,21 +13,19 @@ package object torchrec {
   def cpu(): String = "cpu"
   def cuda(device: Int = 0): String = s"cuda:$device"
 
-  def randn(sizes: Long*): Tensor = torch.randn(sizes.toArray, null.asInstanceOf[TensorOptions])
-  def rand(sizes: Long*): Tensor = torch.rand(sizes.toArray, null.asInstanceOf[TensorOptions])
-  def zeros(sizes: Long*): Tensor = torch.zeros(sizes.toArray, null.asInstanceOf[TensorOptions])
-  def ones(sizes: Long*): Tensor = torch.ones(sizes.toArray, null.asInstanceOf[TensorOptions])
+  def randn(sizes: Long*): Tensor =
+    torch.randn(sizes.toArray, new TensorOptions().dtype(new ScalarTypeOptional(ScalarType.Float)))
+  def rand(sizes: Long*): Tensor =
+    torch.rand(sizes.toArray, new TensorOptions().dtype(new ScalarTypeOptional(ScalarType.Float)))
+  def zeros(sizes: Long*): Tensor =
+    torch.zeros(sizes.toArray, new TensorOptions().dtype(new ScalarTypeOptional(ScalarType.Float)))
+  def ones(sizes: Long*): Tensor =
+    torch.ones(sizes.toArray, new TensorOptions().dtype(new ScalarTypeOptional(ScalarType.Float)))
 
   def tensor(data: Array[Float], sizes: Long*): Tensor = {
-    val ptr = new FloatPointer(data.length)
-    var i = 0
-    while (i < data.length) {
-      ptr.put(i, data(i))
-      i += 1
-    }
-    val opts = new TensorOptions()
-    opts.dtype().put(ScalarType.Float)
-    torch.from_blob(ptr, sizes.toArray, null.asInstanceOf[org.bytedeco.pytorch.PointerConsumer], opts).clone()
+    val flat = torch.tensor(data, new TensorOptions().dtype(new ScalarTypeOptional(ScalarType.Float)))
+    if (sizes.length == 1 && sizes(0) == data.length) flat
+    else flat.reshape(sizes.toArray: _*)
   }
 
   def tensor(data: Array[Int], sizes: Long*): Tensor = {
@@ -36,28 +34,22 @@ package object torchrec {
   }
 
   def tensor(data: Array[Long], sizes: Long*): Tensor = {
-    val ptr = new LongPointer(data.length)
-    var i = 0
-    while (i < data.length) {
-      ptr.put(i, data(i))
-      i += 1
-    }
-    val opts = new TensorOptions()
-    opts.dtype().put(ScalarType.Long)
-    torch.from_blob(ptr, sizes.toArray, null.asInstanceOf[org.bytedeco.pytorch.PointerConsumer], opts).clone()
+    val n = data.length
+    val f = data.map(_.toFloat)
+    val flat = torch.tensor(f, new TensorOptions().dtype(new ScalarTypeOptional(ScalarType.Float)))
+    val t = flat.toType(ScalarType.Long)
+    flat.close()
+    if (sizes.length == 1 && sizes(0) == n) t
+    else { val r = t.reshape(sizes.toArray: _*); t.close(); r }
   }
 
   def longTensor(data: Array[Long]): Tensor = {
-    val ptr = new LongPointer(data.length)
-    var i = 0
-    while (i < data.length) {
-      ptr.put(i, data(i))
-      i += 1
-    }
-    val sizesArr = Array(data.length.toLong)
-    val opts = new TensorOptions()
-    opts.dtype().put(ScalarType.Long)
-    torch.from_blob(ptr, sizesArr, null.asInstanceOf[org.bytedeco.pytorch.PointerConsumer], opts).clone()
+    val n = data.length
+    val f = data.map(_.toFloat)
+    val flat = torch.tensor(f, new TensorOptions().dtype(new ScalarTypeOptional(ScalarType.Float)))
+    val t = flat.toType(ScalarType.Long)
+    flat.close()
+    t
   }
 
   def arange(start: Int, end: Int, step: Int = 1): Tensor =

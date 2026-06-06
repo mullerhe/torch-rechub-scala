@@ -44,7 +44,7 @@ class VectorIndexer(
     val distsMat: Tensor = metric match {
       case IndexMetric.L2 =>
         val x_sq = q.square.sum(1).unsqueeze(1)
-        val y_sq = index.square.sum(1).unsqueeze(1)
+        val y_sq = index.square.sum(1).unsqueeze(0)
         val xy = torch.matmul(q, index.t())
         x_sq.add(y_sq).add(xy.neg().mul(new Scalar(2.0f)))
       case IndexMetric.IP =>
@@ -135,7 +135,7 @@ class FaissIVFIndexer(
     val centroidDists: Tensor = metric match {
       case IndexMetric.L2 =>
         val q_sq = q.square.sum(1).unsqueeze(1)
-        val c_sq = centroids.square.sum(1).unsqueeze(1)
+        val c_sq = centroids.square.sum(1).unsqueeze(0)
         val qc = torch.matmul(q, centroids.t())
         q_sq.add(c_sq).add(qc.neg().mul(new Scalar(2.0f)))
       case IndexMetric.IP =>
@@ -194,7 +194,7 @@ class FaissIVFIndexer(
     val distsMat: Tensor = metric match {
       case IndexMetric.L2 =>
         val q_sq = q.square.sum(1).unsqueeze(1)
-        val c_sq = candTensor.square.sum(1).unsqueeze(1)
+        val c_sq = candTensor.square.sum(1).unsqueeze(0)
         val qc = torch.matmul(q, candTensor.t())
         q_sq.add(c_sq).add(qc.neg().mul(new Scalar(2.0f)))
       case IndexMetric.IP =>
@@ -265,7 +265,7 @@ class KMeansClustering(nClusters: Int, maxIter: Int = 25, seed: Int = 42) {
     while (iter < maxIter) {
       // Assign each point to nearest centroid using batch L2 distance
       val v_sq = vectors.square.sum(1).unsqueeze(1)
-      val c_sq = centroids.square.sum(1).unsqueeze(1)
+      val c_sq = centroids.square.sum(1).unsqueeze(0)
       val vc = torch.matmul(vectors, centroids.t())
       val distMat = v_sq.add(c_sq).add(vc.neg().mul(new Scalar(2.0f)))
 
@@ -319,7 +319,7 @@ class KMeansClustering(nClusters: Int, maxIter: Int = 25, seed: Int = 42) {
 
     // Return final assignments (manual argmin along dim 1)
     val v_sq = vectors.square.sum(1).unsqueeze(1)
-    val c_sq = centroids.square.sum(1).unsqueeze(1)
+    val c_sq = centroids.square.sum(1).unsqueeze(0)
     val vc = torch.matmul(vectors, centroids.t())
     val distMat = v_sq.add(c_sq).add(vc.neg().mul(new Scalar(2.0f)))
     val distHost = distMat.to(ScalarType.Float).contiguous()

@@ -3,7 +3,7 @@ package tutorials
 import torchrec.Implicits._
 import torchrec.basic.features._
 import torchrec.data._
-import torchrec.data.DataGenerator
+import benchmarks.DataGenerator
 import torchrec.models.ranking._
 import torchrec.trainers._
 
@@ -37,10 +37,11 @@ object QuickStartCTR {
     println("Step 1: Preparing data...")
     val (trainData, valData, testData) = DataGenerator.generateRankingData(
       numSamples = 5000,
-      numSparseFeatures = 5,
-      numDenseFeatures = 3,
-      vocabSize = 50,
-      seed = 2024
+      numSparseFeatures = 3,
+      numDenseFeatures = 0,
+      vocabSize = 150,
+      seed = 2024,
+      featureNames = Seq("user_id", "item_id", "category")
     )
     println(f"  Generated ${trainData.size}%,d training samples")
     println(f"  Generated ${valData.size}%,d validation samples")

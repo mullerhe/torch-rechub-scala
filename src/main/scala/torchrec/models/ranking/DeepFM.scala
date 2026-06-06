@@ -39,6 +39,13 @@ class DeepFM(
   private val mlp = new MLP(sparseDim, mlpDims.map(_.toLong), 1, "relu", dropout, false, device = device)
   register_module("mlp", mlp)
 
+  // Move all submodules to device
+  if (device != "cpu") {
+    linear.to(new org.bytedeco.pytorch.Device(device), false)
+    fm.to(new org.bytedeco.pytorch.Device(device), false)
+    mlp.to(new org.bytedeco.pytorch.Device(device), false)
+  }
+
   def forward(
     sparseFeats: Map[String, Tensor],
     denseFeats: Map[String, Tensor] = Map.empty
@@ -54,15 +61,16 @@ class DeepFM(
     if (embList.isEmpty) throw new IllegalArgumentException("No embeddings found for given features")
     val embeddings = embList.stack(1) // (batch, num_fields, embed_dim)
 
-    // First-order: linear (skipped native cat issues) - use zero placeholder
+    // First-order: linear (zero placeholder for now — linear module unused due to sparse indices)
     val batchSize = embeddings.size(0)
-    val linearOut = torchrec.TorchRec.zeros(batchSize, 1)
+    val linearOut = torch.zeros(Array(batchSize.toLong, 1L), new TensorOptions().dtype(new ScalarTypeOptional(ScalarType.Float))).to(embeddings.device(), ScalarType.Float)
 
     // Second-order: FM interactions
     val fmOut = fm.forward(embeddings)
 
-    // Deep part: flatten embeddings to (batch, sparseDim) before MLP
-    val mlpIn = embeddings.view(batchSize, sparseDim.toLong)
+    // Deep part: flatten embeddings to (batch, actualSparseDim) before MLP
+    val actualSparseDim = (embeddings.size(1) * embeddings.size(2)).toLong
+    val mlpIn = embeddings.view(batchSize, actualSparseDim)
     val mlpOut = mlp.forward(mlpIn)
 
     // Combine and sigmoid

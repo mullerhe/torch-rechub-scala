@@ -35,6 +35,11 @@ class DSSM(
   private val itemTower = new MLP(itemSparseDim, towerDims, embedDim, "relu", dropout, device = device)
   register_module("itemTower", itemTower)
 
+  if (device != "cpu") {
+    userTower.to(new org.bytedeco.pytorch.Device(device), false)
+    itemTower.to(new org.bytedeco.pytorch.Device(device), false)
+  }
+
   def forward(
     userFeats: Map[String, Tensor],
     itemFeats: Map[String, Tensor]

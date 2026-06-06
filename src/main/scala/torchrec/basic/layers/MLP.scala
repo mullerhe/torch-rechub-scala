@@ -1,9 +1,10 @@
 package torchrec.basic.layers
 
-import org.bytedeco.pytorch._
+import org.bytedeco.pytorch.*
 import org.bytedeco.pytorch.global.torch
+import org.bytedeco.pytorch.global.torch.ScalarType
 
-import scala.jdk.CollectionConverters._
+import scala.jdk.CollectionConverters.*
 import scala.collection.mutable
 
 /**
@@ -54,6 +55,15 @@ class MLP(
   val outputLinear = new LinearImpl(prevDim, outputDim)
   register_module("output", outputLinear)
   layers += outputLinear
+
+  // Move all layers to target device
+  if (device != "cpu") {
+    val dev = new org.bytedeco.pytorch.Device(device)
+    layers.foreach { m =>
+      try { m.to(dev, false) } catch { case _: Throwable => }
+    }
+    try { this.to(dev, false) } catch { case _: Throwable => }
+  }
 
   def forward(x: Tensor): Tensor = {
     var result: Tensor = x
@@ -115,10 +125,14 @@ class IdentityImpl extends Module {
  * PReLU activation
  */
 class PReLUImpl extends Module {
-  private val weightTensor = torch.zeros(Array[Long](1L), null.asInstanceOf[org.bytedeco.pytorch.TensorOptions])
-  private val weight = weightTensor
+  private var weight: Tensor = _
 
   def forward(x: Tensor): Tensor = {
+    if (weight == null || weight.device() != x.device()) {
+      if (weight != null) weight.close()
+      weight = torch.zeros(Array[Long](1L), new TensorOptions().dtype(new ScalarTypeOptional(ScalarType.Float)))
+        .to(x.device(), ScalarType.Float)
+    }
     torch.prelu(x, weight)
   }
 }

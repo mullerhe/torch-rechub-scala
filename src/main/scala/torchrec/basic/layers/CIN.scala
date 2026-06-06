@@ -17,38 +17,47 @@ class CIN(
   device: String = "cpu"
 ) extends Module {
 
-  private val fcLayers = mutable.ListBuffer[LinearImpl]()
-
-  // CIN layer sizes (number of filters at each layer)
   private val layerSizes: List[Long] = (0 until numLayers).map { i =>
     math.max(1, embedDim / (i + 1)).toLong
   }.toList
 
+  // Lazily created FC layers (input dim only known at first forward)
+  private var fcLayers: List[LinearImpl] = _
+  private var lastNumFields: Int = -1
+
   def forward(embeddings: Tensor): Tensor = {
-    // embeddings: (batch_size, num_fields, embed_dim)
     val batchSize = embeddings.size(0)
     val numFields = embeddings.size(1)
 
-    var xk = embeddings // (batch, num_fields, embed_dim)
+    // Lazily build layers on first call (input dim depends on numFields)
+    if (fcLayers == null || lastNumFields != numFields) {
+      fcLayers = List.tabulate(numLayers) { layerIdx =>
+        val inDim = numFields * embeddings.size(2)
+        val outSize = layerSizes(layerIdx)
+        val fc = new LinearImpl(inDim, numFields * outSize)
+        register_module(s"fc_$layerIdx", fc)
+        try {
+          fc.to(new org.bytedeco.pytorch.Device(device), false)
+        } catch { case _: Throwable => }
+        fc
+      }
+      lastNumFields = numFields.toInt
+      
+    }
+
+    var xk = embeddings
     val splitResult = embeddings.split(1, 1)
-    var hk = splitResult.get(0) // (batch, 1, embed_dim)
+    var hk = splitResult.get(0)
 
     val outputs = mutable.ListBuffer[Tensor]()
-    outputs += hk.squeeze(1) // First layer output
+    outputs += hk.squeeze(1)
 
     for (layerIdx <- 0 until numLayers) {
-      val xh = torch.matmul(xk.transpose(1, 2), hk) // (batch, embed, fields_k * fields_0)
-      val xhSqueezed = xh.squeeze(1) // (batch, embed * fields_prev)
+      val xh = torch.matmul(xk.transpose(1, 2), hk)
+      val xhSqueezed = xh.squeeze(1)
 
-      // Reshape for convolution
-      val outSize = layerSizes(layerIdx)
-      val fc = new LinearImpl(xhSqueezed.size(1), numFields * outSize)
-      register_module(s"fc_$layerIdx", fc)
+      val out = fcLayers(layerIdx).forward(xhSqueezed)
 
-      val out = fc.forward(xhSqueezed)
-      val reshaped = out.view(batchSize, numFields, outSize) // (batch, fields, out_size)
-
-      // Activation
       val activated = activation match {
         case "relu" => out.relu()
         case "sigmoid" => out.sigmoid()
@@ -56,18 +65,15 @@ class CIN(
         case _ => out
       }
 
-      // Sum pooling over field dimension
-      val pooled = activated.sum(1) // (batch, out_size)
+      val pooled = activated.sum(1)
 
-      // Prepare for next layer
-      val newHk = pooled.unsqueeze(1).repeat(1, numFields, 1) // (batch, fields, out_size)
-      xk = xk // Keep x_0
-      hk = newHk.transpose(1, 2) // (batch, out_size, fields) for next iteration
+      val newHk = pooled.unsqueeze(1).repeat(1, numFields, 1)
+      xk = xk
+      hk = newHk.transpose(1, 2)
 
       outputs += pooled
     }
 
-    // Concat all layer outputs and reduce
     val tensorVec = new TensorVector(outputs.size.toLong)
     outputs.foreach(tensorVec.push_back)
     torch.cat(tensorVec, 1L)

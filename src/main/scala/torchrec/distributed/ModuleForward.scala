@@ -35,4 +35,10 @@ class ModuleForward private(private val forwardMethod: Method) {
     case e: Exception =>
       throw new RuntimeException("Failed to invoke forward: " + e.getMessage, e)
   }
+
+  def apply(module: Module, inputMap: Map[String, Tensor]): Tensor = try forwardMethod.invoke(module, inputMap).asInstanceOf[Tensor]
+  catch {
+    case e: Exception =>
+      throw new RuntimeException("Failed to invoke forward: " + e.getMessage, e)
+  }
 }

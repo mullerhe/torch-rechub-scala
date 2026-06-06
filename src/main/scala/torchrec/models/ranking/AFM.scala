@@ -93,7 +93,7 @@ class AFM(
     }
 
     if (pairwiseList.isEmpty) {
-      return torch.ones(batchSize, 1)
+      return torch.ones(batchSize, 1).to(embeddings.device(), ScalarType.Float)
     }
 
     val pairwise = torch.cat(pairwiseList.toList.toTensorVector,  1)

@@ -49,7 +49,7 @@ object DeepFMExample {
       embedDim = embedDim,
       mlpDims = List(128L, 64L),
       dropout = 0.2f,
-      device = "cpu"
+      device = "cuda"
     )
     println(s"  Model created: DeepFM(embedDim=$embedDim)")
 
@@ -78,11 +78,9 @@ object DeepFMExample {
     for (epoch <- 0 until numEpochs) {
       try {
         val pred = model.forward(batchFeatures.toMap)
-        println("\n[4] Training model...1")
         val predSqueezed = pred.squeeze()
-        println("\n[4] Training model..2.")
-        val diff = predSqueezed.sub(labelsTensor)
-        println("\n[4] Training model...3")
+        val labelsOnDevice = labelsTensor.to(pred.device(), ScalarType.Float)
+        val diff = predSqueezed.sub(labelsOnDevice)
         val loss = TorchRec.mul(diff, diff).mean()
         println(s"  Epoch $epoch: loss=${f"${loss.item().toFloat}%.4f"}")
       }

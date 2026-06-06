@@ -16,7 +16,7 @@ class DataLoader(
   shuffle: Boolean = true,
   numWorkers: Int = 4,
   dropLast: Boolean = false,
-  device: String = "cpu"
+  device: String = "cuda"
 ) extends Iterable[Batch] {
 
   private var currentIndex = 0

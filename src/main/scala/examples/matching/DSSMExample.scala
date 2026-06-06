@@ -31,7 +31,7 @@ object DSSMExample {
     val batchSize = 128
     val learningRate = 1e-3f
     val numEpochs = 5
-    val device = "cpu"
+    val device = "cuda"
 
     println(s"\nConfiguration:")
     println(s"  Users: $numUsers")

@@ -14,10 +14,10 @@ class BCELoss(
   posWeight: Option[Tensor] = None
 ) {
   def apply(predictions: Tensor, targets: Tensor): Tensor = {
-    // Compute BCE without using clamp - clip manually
-    val epsTensor = torch.full(Array(1L), new Scalar(1e-7f))
-    val oneMinusEpsTensor = torch.full(Array(1L), new Scalar(1.0f - 1e-7f))
-    val oneTensor = torch.full(Array(1L), new Scalar(1.0f))
+    val dev = predictions.device()
+    val epsTensor = torch.full(Array(1L), new Scalar(1e-7f)).to(dev, ScalarType.Float)
+    val oneMinusEpsTensor = torch.full(Array(1L), new Scalar(1.0f - 1e-7f)).to(dev, ScalarType.Float)
+    val oneTensor = torch.full(Array(1L), new Scalar(1.0f)).to(dev, ScalarType.Float)
     val clipped = predictions.maximum(epsTensor).minimum(oneMinusEpsTensor)
     val logClipped = clipped.log()
     val oneMinusClipped = clipped.neg().add(oneTensor)
@@ -88,9 +88,9 @@ class BPRLoss(margin: Float = 1.0f) {
 class HingeLoss(margin: Float = 1.0f) {
   def apply(posScores: Tensor, negScores: Tensor): Tensor = {
     val diff = posScores.sub(negScores)
-    val mTensor = torch.full(Array(1L), new Scalar(margin))
-    val zeroTensor = torch.full(Array(1L), new Scalar(0.0f))
-    // ReLU-like: max(0, margin - diff)
+    val dev = diff.device()
+    val mTensor = torch.full(Array(1L), new Scalar(margin)).to(dev, ScalarType.Float)
+    val zeroTensor = torch.full(Array(1L), new Scalar(0.0f)).to(dev, ScalarType.Float)
     val losses = diff.neg().add(mTensor).maximum(zeroTensor)
     losses.mean()
   }
@@ -100,8 +100,9 @@ class TripletMarginLoss(margin: Float = 1.0f) {
   def apply(anchor: Tensor, positive: Tensor, negative: Tensor): Tensor = {
     val distPos = anchor.sub(positive).pow(new Scalar(2.0f)).sum(1)
     val distNeg = anchor.sub(negative).pow(new Scalar(2.0f)).sum(1)
-    val mTensor = torch.full(Array(1L), new Scalar(margin))
-    val zeroTensor = torch.full(Array(1L), new Scalar(0.0f))
+    val dev = distPos.device()
+    val mTensor = torch.full(Array(1L), new Scalar(margin)).to(dev, ScalarType.Float)
+    val zeroTensor = torch.full(Array(1L), new Scalar(0.0f)).to(dev, ScalarType.Float)
     val losses = distPos.sub(distNeg).add(mTensor).maximum(zeroTensor)
     losses.mean()
   }
@@ -116,7 +117,7 @@ class InBatchNCELoss(temperature: Float = 0.07f) {
     ).squeeze(2)
     val allScores = torch.cat(Seq(posScores.unsqueeze(1), negScores).toTensorVector, 1)
     val scaledScores = allScores.div(new Scalar(temperature))
-    val labels = torch.zeros(userEmbeds.size(0).toLong).toType(ScalarType.Long)
+    val labels = torch.zeros(userEmbeds.size(0).toLong).toType(ScalarType.Long).to(userEmbeds.device(), ScalarType.Long)
     torch.cross_entropy(scaledScores, labels)
   }
 }

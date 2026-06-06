@@ -1,8 +1,8 @@
 package torchrec.basic.layers
 
-import org.bytedeco.pytorch._
+import org.bytedeco.pytorch.*
 import org.bytedeco.pytorch.global.torch
-
+import org.bytedeco.pytorch.global.torch.ScalarType
 import torchrec.Implicits.RichTensor
 
 /**
@@ -22,14 +22,16 @@ class CrossNetwork(
     w
   }
 
-  private val biases: List[Tensor] = List.tabulate(numLayers) { i =>
-    torch.zeros(1L)
-  }
+  private var biases: List[Tensor] = _
 
   def forward(x0: Tensor): Tensor = {
+    if (biases == null) {
+      biases = List.tabulate(numLayers) { _ =>
+        torch.zeros(1L).to(x0.device(), ScalarType.Float)
+      }
+    }
     var xl = x0
     for (i <- 0 until numLayers) {
-      // x_{l+1} = x_0 * (W_l^T * x_l) + b_l + x_l
       val wtxl = weights(i).forward(xl) // (batch, 1)
       val dot = x0.mul(wtxl).squeeze(1) // (batch, dim)
       xl = dot.add(biases(i)).add(xl)

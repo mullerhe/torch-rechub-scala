@@ -62,7 +62,7 @@ class VectorIndexer(
     val indicesArr = new Array[Long](n * topK)
     val distsArr = new Array[Float](n * topK)
 
-    val distsHost = distsMat.to(ScalarType.Float).contiguous()
+    val distsHost = distsMat.to(ScalarType.Float).contiguous().cpu()
     val flatData = distsHost.toFloatArray
 
     var i = 0
@@ -150,7 +150,7 @@ class FaissIVFIndexer(
 
     // Step 2: Find nearest nprobe clusters per query
     val nprobeActual = Math.min(nprobe, nlist)
-    val centroidDistsHost = centroidDists.to(ScalarType.Float).contiguous()
+    val centroidDistsHost = centroidDists.to(ScalarType.Float).contiguous().cpu()
     val centroidFlat = centroidDistsHost.toFloatArray
 
     val selectedClusters = new Array[Array[Int]](nq)
@@ -187,7 +187,7 @@ class FaissIVFIndexer(
     // Step 4: Batch distances to candidates
     // Build candidate tensor: slice rows from vectors
     val candIndicesLong = candArray.map(_.toLong).toArray
-    val candIndicesTensor = torchrec.Implicits.longTensor(candIndicesLong)
+    val candIndicesTensor = torchrec.Implicits.longTensor(candIndicesLong).to(vectors.device(), ScalarType.Long)
     val candTensor = vectors.index_select(0, candIndicesTensor)
     candIndicesTensor.close()
 
@@ -211,7 +211,7 @@ class FaissIVFIndexer(
     val indicesArr = new Array[Long](nq * topK)
     val distsArr = new Array[Float](nq * topK)
 
-    val distsHost = distsMat.to(ScalarType.Float).contiguous()
+    val distsHost = distsMat.to(ScalarType.Float).contiguous().cpu()
     val flatData = distsHost.toFloatArray
 
     qi = 0
@@ -256,7 +256,7 @@ class KMeansClustering(nClusters: Int, maxIter: Int = 25, seed: Int = 42) {
     // Initialize centroids by random sampling
     val rng = new scala.util.Random(seed)
     val initIdx = rng.shuffle((0 until n).toSeq).take(nClusters).sorted
-    val initIndices = torchrec.Implicits.longTensor(initIdx.map(_.toLong).toArray)
+    val initIndices = torchrec.Implicits.longTensor(initIdx.map(_.toLong).toArray).to(vectors.device(), ScalarType.Long)
     centroids = vectors.index_select(0, initIndices).clone()
     initIndices.close()
 
@@ -270,7 +270,7 @@ class KMeansClustering(nClusters: Int, maxIter: Int = 25, seed: Int = 42) {
       val distMat = v_sq.add(c_sq).add(vc.neg().mul(new Scalar(2.0f)))
 
       // Manual argmin along dim 1: find nearest cluster per vector
-      val distHost = distMat.to(ScalarType.Float).contiguous()
+      val distHost = distMat.to(ScalarType.Float).contiguous().cpu()
       val flatData = distHost.toFloatArray
       val assignArr = new Array[Long](n)
       var r = 0
@@ -289,7 +289,7 @@ class KMeansClustering(nClusters: Int, maxIter: Int = 25, seed: Int = 42) {
       distHost.close()
 
       // Accumulate sums per cluster
-      val newCentroids = torchrec.Implicits.zeros(Array(nClusters.toLong, d.toLong))
+      val newCentroids = torchrec.Implicits.zeros(Array(nClusters.toLong, d.toLong)).to(vectors.device(), ScalarType.Float)
       val counts = new Array[Int](nClusters)
 
       var i = 0
@@ -322,7 +322,7 @@ class KMeansClustering(nClusters: Int, maxIter: Int = 25, seed: Int = 42) {
     val c_sq = centroids.square.sum(1).unsqueeze(0)
     val vc = torch.matmul(vectors, centroids.t())
     val distMat = v_sq.add(c_sq).add(vc.neg().mul(new Scalar(2.0f)))
-    val distHost = distMat.to(ScalarType.Float).contiguous()
+    val distHost = distMat.to(ScalarType.Float).contiguous().cpu()
     val flatData = distHost.toFloatArray
     val resultArr = new Array[Long](n)
     var ri = 0
@@ -376,7 +376,7 @@ class FaissBuilder(
     var i = 0
     while (i < n) {
       idxBuf(0) = i.toLong
-      val idxT = torchrec.Implicits.longTensor(idxBuf)
+      val idxT = torchrec.Implicits.longTensor(idxBuf).to(assignments.device(), ScalarType.Long)
       val c = assignments.index_select(0, idxT).item().toInt
       idxT.close()
       invertedLists(c) += i
@@ -448,7 +448,7 @@ class AnnoyIndexer(
         val nc = candArray.length
 
         val candIndicesLong = candArray.map(_.toLong).toArray
-        val candIndicesTensor = torchrec.Implicits.longTensor(candIndicesLong)
+        val candIndicesTensor = torchrec.Implicits.longTensor(candIndicesLong).to(vectors.device(), ScalarType.Long)
         val candTensor = if (nc == n) vectors else vectors.index_select(0, candIndicesTensor)
         candIndicesTensor.close()
 
@@ -470,7 +470,7 @@ class AnnoyIndexer(
             torch.neg(ip.squeeze(0))
         }
 
-        val distsHost = dists.to(ScalarType.Float).contiguous()
+        val distsHost = dists.to(ScalarType.Float).contiguous().cpu()
         val flatData = distsHost.toFloatArray
         val sorted = flatData.zipWithIndex.sortBy(_._1)
 
@@ -646,31 +646,55 @@ class HNSWIndexer(
     (indicesTensor, distsTensor)
   }
 
-  /** Greedy layer search starting from top level. */
+  /**
+   * Greedy descent through HNSW layers.
+   * At each level: start from entry node, greedily move to the best (nearest) neighbor
+   * until reaching a local minimum (current node is better than all its neighbors).
+   * Then descend to the next level with the best node as the new entry point.
+   * Finally, collect k-NN candidates by exploring ef neighbors from the best node at level 0.
+   */
   private def searchLayer(query: Tensor, ef: Int): Array[(Int, Float)] = {
-    // Start from any node (use node 0 as entry)
-    var best: (Int, Float) = (0, computeDist(query, 0))
+    var entryNode = 0
     var level = maxLevel - 1
 
-    val visited = mutable.HashSet[Int](best._1)
-    val pqOrdering = Ordering.by[(Int, Float), Float](p => -p._2)
-    val pq = new mutable.PriorityQueue[(Int, Float)]()(pqOrdering)
-    pq.enqueue(best)
+    // Phase 1: Greedy descent from top level to level 1
+    while (level > 0) {
+      val node = graph(entryNode)
+      if (level >= node.neighbors.length) { level -= 1; () }
+      else {
+        val neighbors = node.neighbors(level)
+        var bestId = entryNode
+        var bestDist = computeDist(query, entryNode)
+        var changed = false
+        for (nid <- neighbors) {
+          val d = computeDist(query, nid)
+          if (d < bestDist) { bestDist = d; bestId = nid; changed = true }
+        }
+        if (!changed) level -= 1  // local minimum reached, descend
+        else entryNode = bestId
+      }
+    }
 
-    while (level >= 0 && pq.nonEmpty) {
+    // Phase 2: Collect ef candidates from level 0 using a PQ (best-first)
+    val visited = mutable.HashSet[Int]()
+    val pq = new mutable.PriorityQueue[(Int, Float)]()(Ordering.by(-_._2))
+    visited.add(entryNode)
+    pq.enqueue((entryNode, computeDist(query, entryNode)))
+    var bestId = entryNode
+    var bestDist = computeDist(query, entryNode)
+
+    while (pq.nonEmpty) {
       val (currId, currDist) = pq.dequeue()
-      if (currDist > best._2) level = -1
+      if (currDist > bestDist) {}  // all remaining are worse
       else {
         val node = graph(currId)
-        if (level < node.neighbors.length) {
-          for (neighborId <- node.neighbors(level)) {
-            if (!visited.contains(neighborId)) {
-              visited.add(neighborId)
-              val d = computeDist(query, neighborId)
-              if (d < best._2 || pq.size < ef) {
-                pq.enqueue((neighborId, d))
-                if (d < best._2) best = (neighborId, d)
-              }
+        if (0 < node.neighbors.length) {
+          for (nid <- node.neighbors(0)) {
+            if (!visited.contains(nid)) {
+              visited.add(nid)
+              val d = computeDist(query, nid)
+              if (d < bestDist) { bestDist = d; bestId = nid }
+              if (pq.size < ef) pq.enqueue((nid, d))
             }
           }
         }
@@ -737,7 +761,7 @@ class MilvusBuilder(
     while (level >= 0) {
       val nodesAtLevel = (0 until n).filter(nodeLevels(_) >= level).toArray
       if (nodesAtLevel.length > mConn) {
-        val batchIdx = torchrec.Implicits.longTensor(nodesAtLevel.map(_.toLong).toArray)
+        val batchIdx = torchrec.Implicits.longTensor(nodesAtLevel.map(_.toLong).toArray).to(vecs.device(), ScalarType.Long)
         val batch = vecs.index_select(0, batchIdx)
         batchIdx.close()
 

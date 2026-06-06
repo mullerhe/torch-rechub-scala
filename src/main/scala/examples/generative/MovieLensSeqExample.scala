@@ -32,7 +32,7 @@ object MovieLensSeqExample {
     val learningRate = 1e-3f
     val numEpochs = 3
     val dropout = 0.2f
-    val device = "cpu"
+    val device = "cuda"
     val seed = 2022
 
     val modelName = if (args.length > 0) args(0).toLowerCase else "hstu"

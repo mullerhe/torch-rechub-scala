@@ -33,7 +33,7 @@ object CriteoExample {
     val learningRate = 1e-3f
     val weightDecay = 1e-4f
     val numEpochs = 3
-    val device = "cpu"
+    val device = "cuda"
     val seed = 2022
 
     // Parse model name from args (default: deepfm)

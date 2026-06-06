@@ -81,7 +81,14 @@ class EmbeddingLayer(
     // Process sparse features
     sparseFeats.foreach { case (name, indices) =>
       embeddingTables.get(name).foreach { embed =>
-        val emb = embed.forward(indices.toType(ScalarType.Long))
+        val embedDev = embed.weight().device()
+        val indicesOnDev = if (indices.device().equals(embedDev)) {
+          indices.toType(ScalarType.Long)
+        } else {
+          indices.toType(ScalarType.Long).to(embedDev, ScalarType.Long)
+        }
+        val emb = embed.forward(indicesOnDev)
+        indicesOnDev.close()
         embeddingList += emb.to(new org.bytedeco.pytorch.Device(device), ScalarType.Float)
       }
     }
@@ -89,16 +96,21 @@ class EmbeddingLayer(
     // Process sequence features
     sequenceFeats.foreach { case (name, indices) =>
       embeddingTables.get(s"${name}_seq").foreach { embed =>
-        val emb = embed.forward(indices.toType(ScalarType.Long))
+        val embedDev = embed.weight().device()
+        val indicesOnDev = if (indices.device().equals(embedDev)) {
+          indices.toType(ScalarType.Long)
+        } else {
+          indices.toType(ScalarType.Long).to(embedDev, ScalarType.Long)
+        }
+        val emb = embed.forward(indicesOnDev)
+        indicesOnDev.close()
 
         // Apply pooling
         val pooled = emb match {
           case _ if name.endsWith("_mean") || name.endsWith("_sum") || name.endsWith("_concat") =>
-            // Already pooled by caller
             emb
           case _ =>
-            // Default: mean pooling with masking
-            poolSequence(emb, indices, "mean")
+            poolSequence(emb, indicesOnDev, "mean")
         }
         embeddingList += pooled.to(new org.bytedeco.pytorch.Device(device), ScalarType.Float)
       }
@@ -140,8 +152,7 @@ class EmbeddingLayer(
     val padIdx = paddingIdx.getOrElse(0L)
     pooling match {
       case "mean" =>
-        // Create mask for valid positions
-        val padTensor = torch.full(Array(1L), new Scalar(padIdx))
+        val padTensor = torch.full(Array(1L), new Scalar(padIdx)).to(indices.device(), ScalarType.Long)
         val mask = indices.ne(padTensor).toType(ScalarType.Float)
         val sum = emb.mul(mask.unsqueeze(2)).sum(1)
         val count = mask.sum(1).unsqueeze(1)
@@ -156,11 +167,9 @@ class EmbeddingLayer(
         maxPair.get0
 
       case "last" =>
-        // Get last non-padding element
-        val padTensor = torch.full(Array(1L), new Scalar(padIdx))
+        val padTensor = torch.full(Array(1L), new Scalar(padIdx)).to(indices.device(), ScalarType.Long)
         val mask = indices.ne(padTensor)
         val lastIdx = mask.sum(1).toType(ScalarType.Long)
-        // Just use mean as fallback for last pooling
         emb.mean(1)
 
       case _ => emb.mean(1)
@@ -170,7 +179,16 @@ class EmbeddingLayer(
   /** Get embedding for a single feature */
   def getEmbedding(name: String, indices: Tensor): Tensor = {
     embeddingTables.get(name) match {
-      case Some(embed) => embed.forward(indices.toType(ScalarType.Long))
+      case Some(embed) =>
+        val embedDevice = embed.weight().device()
+        val indicesOnDevice = if (indices.device().equals(embedDevice)) {
+          indices.toType(ScalarType.Long)
+        } else {
+          indices.toType(ScalarType.Long).to(embedDevice, ScalarType.Long)
+        }
+        val emb = embed.forward(indicesOnDevice)
+        indicesOnDevice.close()
+        emb
       case None => throw new IllegalArgumentException(s"No embedding table for: $name")
     }
   }

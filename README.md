@@ -1,3 +1,4 @@
+[![Torch-RecHub Banner](doc/img/hub.png)]
 # Torch-RecHub-Scala: Scala 3 推荐系统框架
 
 [![License](https://img.shields.io/badge/license-MIT-blue?style=for-the-badge)](LICENSE)
@@ -6,7 +7,7 @@
 [![JavaCPP](https://img.shields.io/badge/JavaCPP-1.5.13-FF6600?style=for-the-badge)](https://github.com/bytedeco/javacpp)
 
 [English](README.md) | [简体中文](README_zh.md)
-
+[![Torch-RecHub Banner](doc/img/core.png)]
 ## 目录
 
 - [简介](#简介)

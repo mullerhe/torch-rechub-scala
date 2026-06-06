@@ -61,12 +61,14 @@ object DeepFMExample {
       val data = Array.tabulate(batchSize) { _ =>
         random.nextInt(vocabSize).toFloat
       }
-      batchFeatures(feat.name) = TorchRec.tensor(data, batchSize.toLong).toType(ScalarType.Long)
+      // Ensure tensors have shape (batch,1) and are on cpu
+      batchFeatures(feat.name) = TorchRec.tensor(data, batchSize.toLong, 1L).to("cpu").toType(ScalarType.Long)
     }
     val labels = Array.tabulate(batchSize) { _ =>
       if (random.nextFloat() > 0.5f) 1.0f else 0.0f
     }
-    val labelsTensor = TorchRec.tensor(labels, batchSize.toLong)
+    // Create labels tensor with shape (batch,1) on cpu
+    val labelsTensor = TorchRec.tensor(labels, batchSize.toLong, 1L).to("cpu").toType(ScalarType.Float)
     println(s"  Generated $batchSize samples")
 
     // Training loop
@@ -76,14 +78,18 @@ object DeepFMExample {
     for (epoch <- 0 until numEpochs) {
       try {
         val pred = model.forward(batchFeatures.toMap)
+        println("\n[4] Training model...1")
         val predSqueezed = pred.squeeze()
+        println("\n[4] Training model..2.")
         val diff = predSqueezed.sub(labelsTensor)
+        println("\n[4] Training model...3")
         val loss = TorchRec.mul(diff, diff).mean()
         println(s"  Epoch $epoch: loss=${f"${loss.item().toFloat}%.4f"}")
-      } catch {
-        case e: Throwable =>
-          println(s"  Epoch $epoch: error=${e.getMessage}")
       }
+//      catch {
+//        case e: Throwable =>
+//          println(s"  Epoch $epoch: error=${e.getMessage}")
+//      }
     }
 
     val trainingTime = (System.currentTimeMillis() - startTime) / 1000.0f
@@ -93,9 +99,11 @@ object DeepFMExample {
     println("\n[5] Evaluating...")
     try {
       val pred = model.forward(batchFeatures.toMap)
+      println("\n[5] Evaluating...1")
       val predArr = pred.squeeze().toFloatArray
+      println("\n[5] Evaluating...2")
       val labelArr = labelsTensor.toFloatArray
-
+      println("\n[5] Evaluating..3.")
       val auc = torchrec.basic.metrics.AUC.calculate(predArr, labelArr)
       val logloss = torchrec.basic.metrics.LogLoss.calculate(predArr, labelArr)
       println(f"  AUC: $auc%.4f")

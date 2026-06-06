@@ -26,7 +26,9 @@ case class Batch(
   tokens: Option[Tensor] = None,
   positions: Option[Tensor] = None,
   timeDiffs: Option[Tensor] = None,
-  targets: Option[Tensor] = None
+  targets: Option[Tensor] = None,
+  // Two-tower matching fields
+  itemFeatures: Map[String, Tensor] = Map.empty
 ) {
   def to(device: String): Batch = {
     val d = new Device(device)
@@ -39,7 +41,8 @@ case class Batch(
       tokens.map(move),
       positions.map(move),
       timeDiffs.map(move),
-      targets.map(move)
+      targets.map(move),
+      itemFeatures.map { case (k, v) => k -> move(v) }
     )
   }
 
@@ -66,11 +69,18 @@ class TensorDataset(
   }
 
   override def get(index: Long): Batch = {
+    // Ensure index is within bounds
+    val safeIndex = index.min(size - 1).max(0)
+    // Use slice to get 1D sub-tensor, then unsqueeze to ensure consistent shape
+    def getFeature(v: Tensor): Tensor = {
+      val sliced = v.narrow(0, safeIndex, 1)
+      if (sliced.dim() == 0) sliced.unsqueeze(0) else sliced
+    }
     Batch(
-      sparseFeatures.map { case (k, v) => k -> v.select(0, index) },
-      denseFeatures.map { case (k, v) => k -> v.select(0, index) },
+      sparseFeatures.map { case (k, v) => k -> getFeature(v) },
+      denseFeatures.map { case (k, v) => k -> getFeature(v) },
       Map.empty,
-      labels.map(_.select(0, index))
+      labels.map(l => getFeature(l))
     )
   }
 }
@@ -120,15 +130,24 @@ class MatchingDataset(
 ) extends Dataset {
 
   override def size: Long = {
-    userFeatures.headOption.map(_._2.size(0)).getOrElse(0)
+    // Return the max of user and item feature counts so the dataset can be
+    // iterated either by users or by items (used for embedding extraction).
+    val u = userFeatures.headOption.map(_._2.size(0)).getOrElse(0L)
+    val it = itemFeatures.headOption.map(_._2.size(0)).getOrElse(0L)
+    math.max(u, it)
   }
 
   override def get(index: Long): Batch = {
+    // Use safe selection to avoid out-of-range when item and user counts differ.
+    def safeSelect(v: Tensor, idx: Long): Tensor = {
+      val safeIdx = math.min(idx, v.size(0) - 1)
+      v.select(0, safeIdx)
+    }
+
     Batch(
-      userFeatures.map { case (k, v) => k -> v.select(0, index) },
-      itemFeatures.map { case (k, v) => k -> v.select(0, index) },
-      Map.empty,
-      labels.map(_.select(0, index))
+      userFeatures.map { case (k, v) => k -> safeSelect(v, index) },
+      itemFeatures = itemFeatures.map { case (k, v) => k -> safeSelect(v, index) },
+      labels = labels.map(l => safeSelect(l, index))
     )
   }
 }

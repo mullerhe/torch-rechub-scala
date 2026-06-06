@@ -62,4 +62,10 @@ class YoutubeDNN(
   ): Tensor = {
     forward(features, sequenceFeatures)
   }
+
+  def userTowerForward(
+    features: Map[String, Tensor]
+  ): Tensor = {
+    forward(features, Map.empty)
+  }
 }

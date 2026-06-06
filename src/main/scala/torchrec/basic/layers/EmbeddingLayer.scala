@@ -82,7 +82,7 @@ class EmbeddingLayer(
     sparseFeats.foreach { case (name, indices) =>
       embeddingTables.get(name).foreach { embed =>
         val emb = embed.forward(indices.toType(ScalarType.Long))
-        embeddingList += emb
+        embeddingList += emb.to(new org.bytedeco.pytorch.Device(device), ScalarType.Float)
       }
     }
 
@@ -100,7 +100,7 @@ class EmbeddingLayer(
             // Default: mean pooling with masking
             poolSequence(emb, indices, "mean")
         }
-        embeddingList += pooled
+        embeddingList += pooled.to(new org.bytedeco.pytorch.Device(device), ScalarType.Float)
       }
     }
 
@@ -108,11 +108,31 @@ class EmbeddingLayer(
       throw new IllegalArgumentException("No embeddings found for given features")
     }
 
-    val concatenated = torch.cat(SeqTensorRichSeq(embeddingList.toSeq).toTensorVector, 1)
+    val batchSize = embeddingList.head.size(0).toInt
+    val numFields = embeddingList.size
+    val embedDims = embeddingList.map(e => (e.numel().toInt / batchSize))
+    val embedDim = if (embedDims.nonEmpty) embedDims.head else 0
+
+    // Manually concatenate embeddings into a single tensor to avoid JNI device issues
+    val resultArr = new Array[Float](batchSize * numFields * embedDim)
+    for ((emb, f) <- embeddingList.zipWithIndex) {
+      val arr = emb.toFloatArray
+      var i = 0
+      while (i < batchSize) {
+        var k = 0
+        while (k < embedDim) {
+          resultArr((i * numFields + f) * embedDim + k) = arr(i * embedDim + k)
+          k += 1
+        }
+        i += 1
+      }
+    }
+    val concatenated = torchrec.TorchRec.tensor(resultArr, batchSize.toLong, numFields.toLong, embedDim.toLong).to(new org.bytedeco.pytorch.Device(device), ScalarType.Float)
+    val flattened = concatenated.view(batchSize.toLong, (numFields * embedDim).toLong)
     if (squeeze && embeddingList.size == 1) {
       concatenated.squeeze(1)
     } else {
-      concatenated
+      flattened
     }
   }
 

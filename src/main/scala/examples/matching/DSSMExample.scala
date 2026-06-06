@@ -106,8 +106,12 @@ object DSSMExample {
     println("\n[6] Extracting user and item embeddings...")
     val userEmbeds = trainer.inferenceEmbedding(testLoader, "user")
     val itemEmbeds = trainer.inferenceEmbedding(testLoader, "item")
-    println(s"  User embeddings shape: ${userEmbeds.head.shape.mkString(", ")}")
-    println(s"  Item embeddings shape: ${itemEmbeds.head.shape.mkString(", ")}")
+    if (userEmbeds.nonEmpty) {
+      println(s"  User embeddings shape: ${userEmbeds.head.shape.mkString(", ")}")
+    }
+    if (itemEmbeds.nonEmpty) {
+      println(s"  Item embeddings shape: ${itemEmbeds.head.shape.mkString(", ")}")
+    }
 
     // 7. Evaluate
     println("\n[7] Evaluating...")

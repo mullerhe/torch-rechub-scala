@@ -68,11 +68,19 @@ class DataLoader(
     var targetsBuilder = mutable.ListBuffer[Tensor]()
     var hasTargets = false
 
+    var itemFeatBuilder = mutable.Map[String, mutable.ListBuffer[Tensor]]()
+    var hasItemFeats = false
+
     batchIndices.foreach { idx =>
-      val batch = dataset.get(idx)
+      val batch = dataset.get(idx.toLong)
 
       batch.sparseFeatures.foreach { case (name, tensor) =>
         sparseBuilder.getOrElseUpdate(name, mutable.ListBuffer()) += tensor
+      }
+
+      batch.itemFeatures.foreach { case (name, tensor) =>
+        itemFeatBuilder.getOrElseUpdate(name, mutable.ListBuffer()) += tensor
+        hasItemFeats = true
       }
 
       batch.denseFeatures.foreach { case (name, tensor) =>
@@ -115,6 +123,7 @@ class DataLoader(
 
     val d = new Device(device)
     def move(t: Tensor): Tensor = t.to(d, t.dtype())
+
     val sparseTensors = sparseBuilder.map { case (name, tensors) =>
       name -> move(tensors.toSeq.stack(0))
     }.toMap
@@ -147,7 +156,13 @@ class DataLoader(
       Some(move(targetsBuilder.toSeq.stack(0)))
     } else None
 
-    Batch(sparseTensors, denseTensors, seqTensors, labels, batchTokens, batchPositions, batchTimeDiffs, batchTargets)
+    val batchItemFeats = if (hasItemFeats) {
+      itemFeatBuilder.map { case (name, tensors) =>
+        name -> move(tensors.toSeq.stack(0))
+      }.toMap
+    } else Map.empty[String, Tensor]
+
+    Batch(sparseTensors, denseTensors, seqTensors, labels, batchTokens, batchPositions, batchTimeDiffs, batchTargets, batchItemFeats)
   }
 }
 

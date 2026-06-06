@@ -1,6 +1,8 @@
 package torchrec.trainers
 
 import torchrec.Implicits._
+import torchrec.data.DataLoader
+import torchrec.models.matching._
 
 import org.bytedeco.pytorch._
 import org.bytedeco.pytorch.global.torch
@@ -38,7 +40,39 @@ class MatchTrainer(
     dataLoader: Any,
     mode: String
   ): Array[Tensor] = {
-    Array()
+    val loader = dataLoader.asInstanceOf[DataLoader]
+    val embeddings = mutable.ArrayBuffer[Tensor]()
+
+    val iter = loader.iterator
+    while (iter.hasNext) {
+      val batch = iter.next()
+      mode match {
+        case "user" =>
+          val userFeats = batch.sparseFeatures
+          (model, userFeats.get("history")) match {
+            case (dssm: DSSM, _) =>
+              embeddings += dssm.userTowerForward(userFeats)
+            case (yt: YoutubeDNN, Some(history)) =>
+              val sparseOnly = userFeats - "history"
+              embeddings += yt.userTowerForward(sparseOnly, Map("history" -> history))
+            case (yt: YoutubeDNN, None) =>
+              embeddings += yt.userTowerForward(userFeats)
+            case _ =>
+          }
+        case "item" =>
+          val itemFeats = batch.itemFeatures
+          if (itemFeats.nonEmpty) {
+            model match {
+              case dssm: DSSM =>
+                embeddings += dssm.itemTowerForward(itemFeats)
+              case _ =>
+            }
+          }
+        case _ =>
+      }
+    }
+
+    embeddings.toArray
   }
 
   def evaluate(dataLoader: Any, topk: Int = 10): Float = {

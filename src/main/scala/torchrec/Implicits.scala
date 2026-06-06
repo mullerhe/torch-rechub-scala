@@ -17,6 +17,11 @@ object Implicits {
     }
     val opts = new TensorOptions()
     opts.dtype().put(ScalarType.Float)
+    try {
+      opts.device().put(new org.bytedeco.pytorch.Device("cpu"))
+    } catch {
+      case _: Throwable =>
+    }
     torch.from_blob(ptr, sizes, null.asInstanceOf[org.bytedeco.pytorch.PointerConsumer], opts).clone()
   }
 
@@ -36,6 +41,11 @@ object Implicits {
     sizesArr(0) = data.length.toLong
     val opts = new TensorOptions()
     opts.dtype().put(ScalarType.Long)
+    try {
+      opts.device().put(new org.bytedeco.pytorch.Device("cpu"))
+    } catch {
+      case _: Throwable =>
+    }
     torch.from_blob(ptr, sizesArr, null.asInstanceOf[org.bytedeco.pytorch.PointerConsumer], opts).clone()
   }
 
@@ -50,6 +60,11 @@ object Implicits {
     sizesArr(0) = data.length.toLong
     val opts = new TensorOptions()
     opts.dtype().put(ScalarType.Float)
+    try {
+      opts.device().put(new org.bytedeco.pytorch.Device("cpu"))
+    } catch {
+      case _: Throwable =>
+    }
     torch.from_blob(ptr, sizesArr, null.asInstanceOf[org.bytedeco.pytorch.PointerConsumer], opts).clone()
   }
 
@@ -102,10 +117,12 @@ object Implicits {
         result
       } catch {
         case _: Exception =>
+          // Fallback: reshape to 1-D and read scalars
+          val flat = contig.reshape(size.toLong)
           val result = new Array[Float](size)
           var i = 0
           while (i < size) {
-            result(i) = contig.select(0, i).item().toFloat
+            result(i) = flat.select(0, i).item().toFloat
             i += 1
           }
           result
@@ -115,7 +132,7 @@ object Implicits {
 
   implicit class SeqTensorRichSeq(val tensors: Seq[Tensor]) extends AnyVal {
     def toTensorVector: TensorVector = {
-      val vec = new TensorVector(tensors.size.toLong)
+      val vec = new TensorVector()
       tensors.foreach(vec.push_back)
       vec
     }

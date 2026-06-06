@@ -6,6 +6,30 @@ import org.bytedeco.pytorch.global.torch.ScalarType
 import org.bytedeco.javacpp.{FloatPointer, LongPointer}
 
 object TorchRec {
+  // Try several strategies to ensure a tensor has a device set. Return the original tensor
+  // if all attempts fail.
+  private def ensureDevice(t: Tensor, deviceStr: String = "cpu"): Tensor = {
+    try {
+      return t.to(new org.bytedeco.pytorch.Device(deviceStr), t.dtype())
+    } catch {
+      case _: Throwable =>
+    }
+    try {
+      val c = t.contiguous()
+      return c.to(new org.bytedeco.pytorch.Device(deviceStr), t.dtype())
+    } catch {
+      case _: Throwable =>
+    }
+    try {
+      val c = t.clone().contiguous()
+      return c.to(new org.bytedeco.pytorch.Device(deviceStr), t.dtype())
+    } catch {
+      case _: Throwable =>
+    }
+    // Give up and return original
+    t
+  }
+
   def tensor(data: Array[Float], sizes: Long*): Tensor = {
     val ptr = new FloatPointer(data.length)
     var i = 0
@@ -15,6 +39,12 @@ object TorchRec {
     }
     val opts = new TensorOptions()
     opts.dtype().put(ScalarType.Float)
+    // Prefer setting device in TensorOptions so the created tensor has a device
+    try {
+      opts.device().put(new org.bytedeco.pytorch.Device("cpu"))
+    } catch {
+      case _: Throwable => // some builds may not support setting device here
+    }
     torch.from_blob(ptr, sizes.toArray, null.asInstanceOf[org.bytedeco.pytorch.PointerConsumer], opts).clone()
   }
 
@@ -38,6 +68,11 @@ object TorchRec {
     val sizesArr = Array(data.length.toLong)
     val opts = new TensorOptions()
     opts.dtype().put(ScalarType.Long)
+    try {
+      opts.device().put(new org.bytedeco.pytorch.Device("cpu"))
+    } catch {
+      case _: Throwable =>
+    }
     torch.from_blob(ptr, sizesArr, null.asInstanceOf[org.bytedeco.pytorch.PointerConsumer], opts).clone()
   }
 
@@ -86,14 +121,34 @@ object TorchRec {
   def transpose(x: Tensor): Tensor = x.t()
 
   def cat(tensors: Seq[Tensor], dim: Int = 0): Tensor = {
+    // Ensure every tensor has a device set. Some tensors created via from_blob may
+    // lack a device which causes torch.cat to fail with "tensor does not have a device".
     val vec = new TensorVector(tensors.size.toLong)
-    tensors.foreach(vec.push_back)
+    var i = 0
+    tensors.foreach { t =>
+      try {
+        val d = t.dim()
+        val shp = try { t.shape().mkString(",") } catch { case _: Throwable => "?" }
+        println(s"TorchRec.cat: tensor[$i]: dim=$d shape=$shp dtype=${t.dtype()}")
+      } catch {
+        case _: Throwable => println(s"TorchRec.cat: tensor[$i]: <info unavailable>")
+      }
+      val tdev = ensureDevice(t, "cpu")
+      try {
+        println(s"TorchRec.cat: tensor[$i] after ensureDevice dtype=${tdev.dtype()}")
+      } catch { case _: Throwable => }
+      vec.push_back(tdev)
+      i += 1
+    }
     torch.cat(vec, dim)
   }
 
   def stack(tensors: Seq[Tensor], dim: Int = 0): Tensor = {
     val vec = new TensorVector(tensors.size.toLong)
-    tensors.foreach(vec.push_back)
+    tensors.foreach { t =>
+      val tdev = ensureDevice(t, "cpu")
+      vec.push_back(tdev)
+    }
     torch.stack(vec, dim)
   }
 

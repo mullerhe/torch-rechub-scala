@@ -26,47 +26,51 @@ object MatchingDSSM {
       |
       |""".stripMargin)
 
-    // Define user and item features
-    println("Defining features...")
-    val userFeatures = List(
-      SparseFeature("user_id", 10000, 16),
-      SparseFeature("user_age", 100, 8),
-      SparseFeature("user_gender", 2, 4)
-    )
+    // Generate matching data first so we can build feature definitions that match
+    println("Defining features and generating matching data...")
+    val numUsers = 5000
+    val numItems = 10000
+    val genNumUserFeatures = 3
+    val genNumItemFeatures = 2
+    val genVocabSize = 100
 
-    val itemFeatures = List(
-      SparseFeature("item_id", 50000, 16),
-      SparseFeature("item_category", 1000, 8)
+    println("\nGenerating matching data...")
+    val (trainData, _, testData) = DataGenerator.generateMatchingData(
+      numUsers = numUsers,
+      numItems = numItems,
+      avgSequenceLength = 10,
+      numUserFeatures = genNumUserFeatures,
+      numItemFeatures = genNumItemFeatures,
+      vocabSize = genVocabSize
     )
+    println(f"  Train: ${trainData.size}%,d users")
+    println(f"  Items: ${numItems}%,d")
+
+    // Build feature lists that match the generated dataset keys
+    val embedDim = 16
+    val userFeatures = (0 until genNumUserFeatures).map { i =>
+      SparseFeature(s"user_feat_$i", genVocabSize, embedDim)
+    }.toList ++ List(SequenceFeature("history", numItems, embedDim))
+
+    val itemFeatures = (0 until genNumItemFeatures).map { i =>
+      SparseFeature(s"item_feat_$i", genVocabSize, embedDim)
+    }.toList
 
     println("\nUser features:")
-    userFeatures.foreach(f => println(f"  - ${f.name}: vocab=${f.vocabSize}%,d"))
+    userFeatures.foreach(f => println(s"  - ${f.name}: vocab=${f.vocabSize}"))
     println("\nItem features:")
-    itemFeatures.foreach(f => println(f"  - ${f.name}: vocab=${f.vocabSize}%,d"))
+    itemFeatures.foreach(f => println(s"  - ${f.name}: vocab=${f.vocabSize}"))
 
     // Create DSSM model
     println("\nCreating DSSM model...")
     val model = new DSSM(
       userFeatures = userFeatures,
       itemFeatures = itemFeatures,
-      embedDim = 16,
+      embedDim = embedDim,
       towerDims = List(256L, 128L, 64L),
       dropout = 0.2f
     )
-    println("  Model: DSSM(embed_dim=16, tower_dims=[256, 128, 64])")
-
-    // Generate matching data
-    println("\nGenerating matching data...")
-    val (trainData, _, testData) = DataGenerator.generateMatchingData(
-      numUsers = 5000,
-      numItems = 10000,
-      avgSequenceLength = 10,
-      numUserFeatures = userFeatures.size,
-      numItemFeatures = itemFeatures.size,
-      vocabSize = 100
-    )
-    println(f"  Train: ${trainData.size}%,d users")
-    println(f"  Items: ${10000}%,d")
+    println(s"  Model: DSSM(embed_dim=$embedDim, tower_dims=[256, 128, 64])")
 
     // Create data loaders
     val trainLoader = new DataLoader(trainData, batchSize = 128, shuffle = true)

@@ -37,7 +37,8 @@ object DataGenerator {
     sparseFeatureNames.foreach { name =>
       val data = Array.ofDim[Float](numSamples)
       for (i <- 0 until numSamples) {
-        data(i) = (random.nextInt(vocabSize) + 1).toFloat
+        // generate indices in range [0, vocabSize-1] to match embedding table indexing
+        data(i) = random.nextInt(vocabSize).toFloat
       }
       sparseFeatures(name) = tensor(data, Array(numSamples.toLong)).toType(ScalarType.Long)
     }
@@ -129,7 +130,8 @@ object DataGenerator {
     for (i <- 0 until numUserFeatures) {
       val data = Array.ofDim[Float](numUsers)
       for (j <- 0 until numUsers) {
-        data(j) = (random.nextInt(vocabSize) + 1).toFloat
+        // generate indices in range [0, vocabSize-1]
+        data(j) = random.nextInt(vocabSize).toFloat
       }
       userFeatures(s"user_feat_$i") = tensor(data, Array(numUsers.toLong)).toType(ScalarType.Long)
     }
@@ -139,7 +141,8 @@ object DataGenerator {
     for (i <- 0 until numItemFeatures) {
       val data = Array.ofDim[Float](numItems)
       for (j <- 0 until numItems) {
-        data(j) = (random.nextInt(vocabSize) + 1).toFloat
+        // generate indices in range [0, vocabSize-1]
+        data(j) = random.nextInt(vocabSize).toFloat
       }
       itemFeatures(s"item_feat_$i") = tensor(data, Array(numItems.toLong)).toType(ScalarType.Long)
     }
@@ -148,7 +151,8 @@ object DataGenerator {
     val sequenceLength = avgSequenceLength + random.nextInt(5)
     val seqFeature = Array.ofDim[Float](numUsers * sequenceLength)
     for (i <- 0 until numUsers; j <- 0 until sequenceLength) {
-      seqFeature(i * sequenceLength + j) = (random.nextInt(numItems) + 1).toFloat
+      // history item ids should be in [0, numItems-1]
+      seqFeature(i * sequenceLength + j) = random.nextInt(numItems).toFloat
     }
     userFeatures("history") = tensor(seqFeature, Array(numUsers.toLong, sequenceLength.toLong)).toType(ScalarType.Long)
 
@@ -187,7 +191,8 @@ object DataGenerator {
     for (i <- 0 until numFeatures) {
       val data = Array.ofDim[Float](numSamples)
       for (j <- 0 until numSamples) {
-        data(j) = (random.nextInt(vocabSize) + 1).toFloat
+        // generate indices in range [0, vocabSize-1]
+        data(j) = random.nextInt(vocabSize).toFloat
       }
       features(s"feat_$i") = tensor(data, Array(numSamples.toLong)).toType(ScalarType.Long)
     }

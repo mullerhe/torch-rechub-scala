@@ -1,5 +1,5 @@
 [![Torch-RecHub Banner](doc/img/hub.png)]
-# Torch-RecHub-Scala: Scala 3 推荐系统框架
+# Torch-RecHub-Scala: Scala 3 Recommender System Framework
 
 [![License](https://img.shields.io/badge/license-MIT-blue?style=for-the-badge)](LICENSE)
 [![Scala](https://img.shields.io/badge/scala-3.8.3-DC322F?style=for-the-badge)](https://www.scala-lang.org/)
@@ -8,64 +8,64 @@
 
 [English](README.md) | [简体中文](README_zh.md)
 [![Torch-RecHub Banner](doc/img/core.png)]
-## 目录
+## Table of Contents
 
-- [简介](#简介)
-- [特性](#特性)
-- [安装](#安装)
-- [快速开始](#快速开始)
-- [项目结构](#项目结构)
-- [支持的模型](#支持的模型)
-- [支持的数据集](#支持的数据集)
-- [示例](#示例)
-- [贡献指南](#贡献指南)
-- [许可证](#许可证)
+- [Introduction](#introduction)
+- [Features](#features)
+- [Installation](#installation)
+- [Quick Start](#quick-start)
+- [Project Structure](#project-structure)
+- [Supported Models](#supported-models)
+- [Supported Datasets](#supported-datasets)
+- [Examples](#examples)
+- [Contributing](#contributing)
+- [License](#license)
 
-## 简介
+## Introduction
 
-**Torch-RecHub-Scala** 是一个基于 Scala 3 和 JavaCPP-PyTorch 的轻量级、高效、易用的推荐系统框架。它是 Python 版 [Torch-RecHub](https://github.com/datawhalechina/torch-rechub) 的 Scala 实现，充分利用了 Scala 的类型安全、函数式编程和 JavaCPP 的高性能 PyTorch 绑定。
+**Torch-RecHub-Scala** is a lightweight, efficient, and easy-to-use recommender system framework built on Scala 3 and JavaCPP-PyTorch. It is a Scala implementation of the Python [Torch-RecHub](https://github.com/datawhalechina/torch-rechub), fully leveraging Scala's type safety, functional programming, and JavaCPP's high-performance PyTorch bindings.
 
-## 特性
+## Features
 
-- **Scala 3 原生支持**: 利用 Scala 3 的新特性（Contextual Abstractions、Extension Methods、Multiversal Equality）提供类型安全的 API
-- **JavaCPP 深度集成**: 通过 JavaCPP 直接调用 PyTorch C++ API，支持 CPU、CUDA GPU、分布式训练
-- **丰富的模型库**: 涵盖 **30+** 主流推荐算法（召回、排序、多任务、生成式推荐等）
-- **模块化设计**: 易于添加新模型、数据集和评估指标
-- **标准化流程**: 提供统一的 Scala Dataset/DataLoader、数据加载、训练和评估流程
-- **JavaCPP DataLoader 深度支持**:
-  - `JavaDataset` / `JavaTensorDataset` - 通用数据集
-  - `JavaStatefulDataset` / `JavaStatefulTensorDataset` - 有状态数据集
-  - `JavaStreamDataset` / `JavaStreamTensorDataset` - 流式数据集
-  - `DistributedRandomSampler` / `DistributedSequentialSampler` - 分布式采样器
-- **分布式训练支持**:
-  - `DDPTrainer` - DistributedDataParallel 训练器
-  - `FSDPTrainer` - FullyShardedDataParallel 训练器
-- **纯 JVM 生态**: 与 Scala/Java/JVM 生态系统无缝集成
+- **Native Scala 3 Support**: Leverages Scala 3 features (Contextual Abstractions, Extension Methods, Multiversal Equality) to provide type-safe APIs
+- **Deep JavaCPP Integration**: Directly calls PyTorch C++ APIs via JavaCPP, supporting CPU, CUDA GPU, and distributed training
+- **Rich Model Library**: Covers **30+** mainstream recommendation algorithms (recall, ranking, multi-task, generative recommendation, etc.)
+- **Modular Design**: Easy to add new models, datasets, and evaluation metrics
+- **Standardized Pipeline**: Provides unified Scala Dataset/DataLoader, data loading, training, and evaluation
+- **Deep JavaCPP DataLoader Support**:
+    - `JavaDataset` / `JavaTensorDataset` - General datasets
+    - `JavaStatefulDataset` / `JavaStatefulTensorDataset` - Stateful datasets
+    - `JavaStreamDataset` / `JavaStreamTensorDataset` - Streaming datasets
+    - `DistributedRandomSampler` / `DistributedSequentialSampler` - Distributed samplers
+- **Distributed Training Support**:
+    - `DDPTrainer` - DistributedDataParallel trainer
+    - `FSDPTrainer` - FullyShardedDataParallel trainer
+- **Pure JVM Ecosystem**: Seamless integration with Scala/Java/JVM ecosystem
 
-## 安装
+## Installation
 
-### 环境要求
+### Requirements
 
 - Scala 3.8+
 - sbt 1.9+
-- Java 17+ (推荐 Java 21)
-- PyTorch 2.10.0 (通过 JavaCPP 自动加载)
+- Java 17+ (Java 21 recommended)
+- PyTorch 2.10.0 (auto-loaded via JavaCPP)
 
-### 安装步骤
+### Installation Steps
 
 ```bash
-# 克隆项目
+# Clone the project
 git clone https://github.com/your-repo/torch-rechub-scala.git
 cd torch-rechub-scala
 
-# 使用 sbt 编译
+# Compile with sbt
 sbt compile
 
-# 运行示例
+# Run an example
 sbt "runMain examples.ranking.DeepFMExample"
 ```
 
-### Maven/Coursier 依赖 (可选)
+### Maven/Coursier Dependencies (Optional)
 
 ```scala
 // build.sbt
@@ -76,9 +76,9 @@ libraryDependencies ++= Seq(
 )
 ```
 
-## 快速开始
+## Quick Start
 
-### 1. CTR 排序模型训练
+### 1. CTR Ranking Model Training
 
 ```scala
 import torchrec.data._
@@ -86,7 +86,7 @@ import torchrec.models.ranking._
 import torchrec.trainers._
 import torchrec.Implicits._
 
-// 生成数据
+// Generate data
 val (trainData, valData, testData) = DataGenerator.generateRankingData(
   numSamples = 10000,
   numSparseFeatures = 10,
@@ -94,44 +94,44 @@ val (trainData, valData, testData) = DataGenerator.generateRankingData(
   vocabSize = 100
 )
 
-// 创建数据加载器
+// Create data loaders
 val trainLoader = DataLoader.fromJavaRandom(trainData, batchSize = 256)
 val valLoader = DataLoader.fromJavaSequential(valData, batchSize = 256)
 
-// 定义特征
+// Define features
 val features = (0 until 10).map { i =>
   SparseFeature(s"feat_$i", vocabSize = 100, embedDim = 8)
 }
 
-// 创建模型
+// Create model
 val model = new DeepFM(features, embedDim = 8, mlpDims = List(64L, 32L))
 
-// 训练
+// Train
 val trainer = new CTRTrainer(model, learningRate = 0.001f)
 trainer.fit(trainLoader, Some(valLoader))
 
-// 评估
+// Evaluate
 val metrics = trainer.evaluate(valLoader)
 println(s"AUC: ${metrics("AUC")}")
 ```
 
-### 2. 召回模型训练
+### 2. Matching/Recall Model Training
 
 ```scala
 import torchrec.models.matching._
 import torchrec.trainers._
 
-// 生成匹配数据
+// Generate matching data
 val (trainData, _, _) = DataGenerator.generateMatchingData(
   numUsers = 5000,
   numItems = 1000,
   vocabSize = 100
 )
 
-// 创建数据加载器
+// Create data loader
 val trainLoader = DataLoader.fromJavaRandom(trainData, batchSize = 128)
 
-// 定义用户/物品特征
+// Define user/item features
 val userFeatures = (0 until 3).map { i =>
   SparseFeature(s"user_feat_$i", vocabSize = 100, embedDim = 16)
 }
@@ -139,20 +139,20 @@ val itemFeatures = (0 until 2).map { i =>
   SparseFeature(s"item_feat_$i", vocabSize = 1000, embedDim = 16)
 }
 
-// 创建 DSSM 模型
+// Create DSSM model
 val model = new DSSM(userFeatures, itemFeatures, embedDim = 16, towerDims = List(128L, 64L))
 
-// 训练
+// Train
 val trainer = new MatchTrainer(model, learningRate = 0.001f)
 trainer.fit(trainLoader)
 ```
 
-### 3. 多任务学习
+### 3. Multi-Task Learning
 
 ```scala
 import torchrec.models.multi_task._
 
-// 生成多任务数据
+// Generate multi-task data
 val taskNames = List("ctr", "cvr")
 val (trainData, _, _) = DataGenerator.generateMultiTaskData(
   numSamples = 10000,
@@ -160,7 +160,7 @@ val (trainData, _, _) = DataGenerator.generateMultiTaskData(
   taskNames = taskNames
 )
 
-// 创建 MMOE 模型
+// Create MMOE model
 val features = (0 until 10).map { i =>
   SparseFeature(s"feat_$i", vocabSize = 100, embedDim = 8)
 }
@@ -175,47 +175,47 @@ val model = new MMOE(
   towerDims = List(32L)
 )
 
-// 训练
+// Train
 val trainer = new MTLTrainer(model, taskNames, learningRate = 0.001f)
 trainer.fit(trainLoader)
 ```
 
-## 项目结构
+## Project Structure
 
 ```
 torch-rechub-scala/
-├── README.md                    # 项目文档
-├── build.sbt                   # sbt 构建配置
+├── README.md                    # Project documentation
+├── build.sbt                   # sbt build configuration
 ├── src/main/scala/
-│   ├── torchrec/               # 核心库
-│   │   ├── TorchRec.scala       # 主入口
-│   │   ├── Implicits.scala      # 隐式转换
-│   │   ├── TensorImplicits.scala # Tensor 扩展
-│   │   ├── basic/              # 基础组件
-│   │   │   ├── features/        # 特征定义
+│   ├── torchrec/               # Core library
+│   │   ├── TorchRec.scala       # Main entry point
+│   │   ├── Implicits.scala      # Implicit conversions
+│   │   ├── TensorImplicits.scala # Tensor extensions
+│   │   ├── basic/              # Basic components
+│   │   │   ├── features/        # Feature definitions
 │   │   │   │   └── Feature.scala
-│   │   │   ├── layers/         # 神经网络层
+│   │   │   ├── layers/         # Neural network layers
 │   │   │   │   ├── MLP.scala
 │   │   │   │   ├── FM.scala
 │   │   │   │   ├── CrossNetwork.scala
 │   │   │   │   ├── CIN.scala
 │   │   │   │   ├── SENETLayer.scala
 │   │   │   │   └── EmbeddingLayer.scala
-│   │   │   ├── losses/         # 损失函数
+│   │   │   ├── losses/         # Loss functions
 │   │   │   │   └── Loss.scala
-│   │   │   └── metrics/        # 评估指标
+│   │   │   └── metrics/        # Evaluation metrics
 │   │   │       └── Metric.scala
-│   │   ├── data/               # 数据处理
-│   │   │   ├── Dataset.scala   # Dataset 基类
+│   │   ├── data/               # Data processing
+│   │   │   ├── Dataset.scala   # Dataset base class
 │   │   │   ├── DataLoader.scala # DataLoader
-│   │   │   ├── DataGenerator.scala # 数据生成器
-│   │   │   ├── JavaDatasetAdapters.scala    # JavaDataset 适配器
-│   │   │   ├── JavaTensorDatasetAdapters.scala # TensorDataset 适配器
-│   │   │   ├── JavaDistributedAdapters.scala # 分布式适配器
-│   │   │   ├── JavaSamplerAdapters.scala    # Sampler 工厂
-│   │   │   └── JavaDataLoaderAdapters.scala # DataLoader 工厂
-│   │   ├── models/             # 推荐模型
-│   │   │   ├── ranking/        # 排序模型
+│   │   │   ├── DataGenerator.scala # Data generator
+│   │   │   ├── JavaDatasetAdapters.scala    # JavaDataset adapters
+│   │   │   ├── JavaTensorDatasetAdapters.scala # TensorDataset adapters
+│   │   │   ├── JavaDistributedAdapters.scala # Distributed adapters
+│   │   │   ├── JavaSamplerAdapters.scala    # Sampler factories
+│   │   │   └── JavaDataLoaderAdapters.scala # DataLoader factories
+│   │   ├── models/             # Recommendation models
+│   │   │   ├── ranking/        # Ranking models
 │   │   │   │   ├── DeepFM.scala
 │   │   │   │   ├── WideDeep.scala
 │   │   │   │   ├── DCN.scala
@@ -227,7 +227,7 @@ torch-rechub-scala/
 │   │   │   │   ├── FiBiNet.scala
 │   │   │   │   ├── DeepFFM.scala
 │   │   │   │   └── EDCN.scala
-│   │   │   ├── matching/        # 召回模型
+│   │   │   ├── matching/        # Matching/recall models
 │   │   │   │   ├── DSSM.scala
 │   │   │   │   ├── YoutubeDNN.scala
 │   │   │   │   ├── MIND.scala
@@ -238,38 +238,38 @@ torch-rechub-scala/
 │   │   │   │   ├── SINE.scala
 │   │   │   │   ├── ComirecSA.scala
 │   │   │   │   └── ComirecDR.scala
-│   │   │   ├── multi_task/      # 多任务模型
+│   │   │   ├── multi_task/      # Multi-task models
 │   │   │   │   ├── ESMM.scala
 │   │   │   │   ├── MMOE.scala
 │   │   │   │   ├── PLE.scala
 │   │   │   │   ├── AITM.scala
 │   │   │   │   └── SharedBottom.scala
-│   │   │   └── generative/      # 生成式推荐
+│   │   │   └── generative/      # Generative recommendation
 │   │   │       ├── HSTU.scala
 │   │   │       ├── HLLM.scala
 │   │   │       ├── TIGER.scala
 │   │   │       └── RQVAE.scala
-│   │   ├── trainers/           # 训练器
-│   │   │   ├── CTRTrainer.scala    # CTR 训练
-│   │   │   ├── MatchTrainer.scala  # 召回训练
-│   │   │   ├── MTLTrainer.scala   # 多任务训练
-│   │   │   └── TrainLoop.scala      # 训练循环
-│   │   ├── distributed/        # 分布式训练
+│   │   ├── trainers/           # Trainers
+│   │   │   ├── CTRTrainer.scala    # CTR training
+│   │   │   ├── MatchTrainer.scala  # Matching training
+│   │   │   ├── MTLTrainer.scala   # Multi-task training
+│   │   │   └── TrainLoop.scala      # Training loop
+│   │   ├── distributed/        # Distributed training
 │   │   │   ├── DDPConfig.scala
 │   │   │   ├── DDPTrainer.scala
 │   │   │   ├── FSDPConfig.scala
 │   │   │   └── FSDPTrainer.scala
-│   │   ├── utils/             # 工具函数
+│   │   ├── utils/             # Utilities
 │   │   │   ├── DataUtils.scala
 │   │   │   ├── MatchUtils.scala
 │   │   │   ├── ModelUtils.scala
 │   │   │   └── Trie.scala
-│   │   ├── quantization/       # 量化
+│   │   ├── quantization/       # Quantization
 │   │   │   └── Quantizer.scala
-│   │   └── serving/            # 在线服务
+│   │   └── serving/            # Online serving
 │   │       ├── VectorIndexer.scala
 │   │       └── package.scala
-│   ├── examples/               # 示例
+│   ├── examples/               # Examples
 │   │   ├── ranking/
 │   │   │   ├── DeepFMExample.scala
 │   │   │   └── CriteoExample.scala
@@ -281,124 +281,124 @@ torch-rechub-scala/
 │   │   │   └── CensusExample.scala
 │   │   └── generative/
 │   │       └── MovieLensSeqExample.scala
-│   ├── tutorials/              # 教程
+│   ├── tutorials/              # Tutorials
 │   │   ├── QuickStartCTR.scala
 │   │   ├── MatchingDSSM.scala
 │   │   ├── MultiTaskMMOE.scala
 │   │   └── RankingDIN.scala
-│   └── benchmarks/            # 性能测试
+│   └── benchmarks/            # Performance benchmarks
 │       ├── BenchmarkRunner.scala
 │       ├── DataGenerator.scala
 │       └── ModelBenchmark.scala
 ```
 
-## 支持的模型
+## Supported Models
 
-### 排序模型 (Ranking) - 12个
+### Ranking Models - 12
 
-| 模型 | 论文 | 简介 |
-|------|------|------|
-| **DeepFM** | IJCAI 2017 | FM + Deep 联合训练 |
-| **Wide&Deep** | DLRS 2016 | 记忆 + 泛化能力结合 |
-| **DCN** | KDD 2017 | 显式特征交叉网络 |
-| **DCN-v2** | WWW 2021 | 增强版交叉网络 |
-| **DIN** | KDD 2018 | 注意力机制捕捉用户兴趣 |
-| **DIEN** | AAAI 2019 | 兴趣演化建模 |
-| **AFM** | IJCAI 2017 | 注意力因子分解机 |
-| **AutoInt** | CIKM 2019 | 自动特征交互学习 |
-| **FiBiNET** | RecSys 2019 | 特征重要性 + 双线性交互 |
-| **DeepFFM** | RecSys 2019 | 场感知因子分解机 |
-| **EDCN** | KDD 2021 | 增强型交叉网络 |
-| **BST** | DLP-KDD 2019 | Transformer 序列建模 |
+| Model | Paper | Description |
+|-------|-------|-------------|
+| **DeepFM** | IJCAI 2017 | FM + Deep joint training |
+| **Wide&Deep** | DLRS 2016 | Memorization + generalization |
+| **DCN** | KDD 2017 | Explicit cross network |
+| **DCN-v2** | WWW 2021 | Enhanced cross network |
+| **DIN** | KDD 2018 | Attention for user interest |
+| **DIEN** | AAAI 2019 | Interest evolution modeling |
+| **AFM** | IJCAI 2017 | Attentive factorization machine |
+| **AutoInt** | CIKM 2019 | Automatic feature interaction |
+| **FiBiNET** | RecSys 2019 | Feature importance + bilinear interaction |
+| **DeepFFM** | RecSys 2019 | Field-aware factorization machine |
+| **EDCN** | KDD 2021 | Enhanced cross network |
+| **BST** | DLP-KDD 2019 | Transformer for sequential modeling |
 
-### 召回模型 (Matching) - 12个
+### Matching Models - 12
 
-| 模型 | 论文 | 简介 |
-|------|------|------|
-| **DSSM** | CIKM 2013 | 经典双塔召回模型 |
-| **YoutubeDNN** | RecSys 2016 | YouTube 深度召回 |
-| **MIND** | CIKM 2019 | 多兴趣动态路由 |
-| **GRU4Rec** | ICLR 2016 | GRU 序列推荐 |
-| **SASRec** | ICDM 2018 | 自注意力序列推荐 |
-| **NARM** | CIKM 2017 | 神经注意力会话推荐 |
-| **STAMP** | KDD 2018 | 短期注意力记忆优先 |
-| **SINE** | WSDM 2021 | 稀疏兴趣网络 |
-| **ComiRec-SA** | KDD 2020 | 可控多兴趣推荐 |
-| **ComiRec-DR** | KDD 2020 | 多兴趣检索 |
+| Model | Paper | Description |
+|-------|-------|-------------|
+| **DSSM** | CIKM 2013 | Classic two-tower recall |
+| **YoutubeDNN** | RecSys 2016 | YouTube deep recall |
+| **MIND** | CIKM 2019 | Multi-interest dynamic routing |
+| **GRU4Rec** | ICLR 2016 | GRU sequential recommendation |
+| **SASRec** | ICDM 2018 | Self-attention sequential recommendation |
+| **NARM** | CIKM 2017 | Neural attentive session recommendation |
+| **STAMP** | KDD 2018 | Short-term attention memory priority |
+| **SINE** | WSDM 2021 | Sparse interest network |
+| **ComiRec-SA** | KDD 2020 | Controllable multi-interest recommendation |
+| **ComiRec-DR** | KDD 2020 | Multi-interest retrieval |
 
-### 多任务模型 (Multi-Task) - 5个
+### Multi-Task Models - 5
 
-| 模型 | 论文 | 简介 |
-|------|------|------|
-| **ESMM** | SIGIR 2018 | 全空间多任务建模 |
-| **MMoE** | KDD 2018 | 多门控专家混合 |
-| **PLE** | RecSys 2020 | 渐进式分层提取 |
-| **AITM** | KDD 2021 | 自适应信息迁移 |
-| **SharedBottom** | - | 经典多任务共享底层 |
+| Model | Paper | Description |
+|-------|-------|-------------|
+| **ESMM** | SIGIR 2018 | Full space multi-task modeling |
+| **MMoE** | KDD 2018 | Multi-gate mixture of experts |
+| **PLE** | RecSys 2020 | Progressive layered extraction |
+| **AITM** | KDD 2021 | Adaptive information transfer |
+| **SharedBottom** | - | Classic multi-task shared bottom |
 
-### 生成式推荐 (Generative) - 4个
+### Generative Recommendation - 4
 
-| 模型 | 论文 | 简介 |
-|------|------|------|
-| **HSTU** | Meta 2024 | 层级序列转换单元 |
-| **HLLM** | 2024 | 层级大语言模型推荐 |
-| **TIGER** | NeurIPS 2023 | 基于 T5 的生成式检索 |
-| **RQVAE** | - | 残差量化变分自编码器 |
+| Model | Paper | Description |
+|-------|-------|-------------|
+| **HSTU** | Meta 2024 | Hierarchical sequential transformer unit |
+| **HLLM** | 2024 | Hierarchical large language model recommendation |
+| **TIGER** | NeurIPS 2023 | T5-based generative retrieval |
+| **RQVAE** | - | Residual quantized variational autoencoder |
 
-## 支持的数据集
+## Supported Datasets
 
-框架内置了对以下常见数据集的支持：
+The framework has built-in support for the following common datasets:
 
-- **MovieLens** - 电影评分推荐
-- **Criteo** - CTR 预测
-- **Census-Income** - 收入预测
-- **Amazon** - 商品推荐
-- **自定义数据集** - 通过 DataGenerator 生成合成数据
+- **MovieLens** - Movie rating recommendation
+- **Criteo** - CTR prediction
+- **Census-Income** - Income prediction
+- **Amazon** - Product recommendation
+- **Custom Datasets** - Generate synthetic data via DataGenerator
 
-### 数据格式
+### Data Format
 
 ```scala
-// Dataset 支持的数据格式
+// Dataset supported data format
 case class Batch(
-  sparseFeatures: Map[String, Tensor],    // 稀疏特征
-  denseFeatures: Map[String, Tensor],      // 密集特征
-  sequenceFeatures: Map[String, Tensor],    // 序列特征
-  labels: Option[Tensor],                  // 标签
-  tokens: Option[Tensor],                   // Token
-  positions: Option[Tensor],                 // 位置
-  timeDiffs: Option[Tensor],                // 时间差
-  targets: Option[Tensor],                  // 目标
-  itemFeatures: Map[String, Tensor]         // 物品特征
+  sparseFeatures: Map[String, Tensor],    // Sparse features
+  denseFeatures: Map[String, Tensor],      // Dense features
+  sequenceFeatures: Map[String, Tensor],    // Sequence features
+  labels: Option[Tensor],                  // Labels
+  tokens: Option[Tensor],                   // Tokens
+  positions: Option[Tensor],                 // Positions
+  timeDiffs: Option[Tensor],                // Time differences
+  targets: Option[Tensor],                  // Targets
+  itemFeatures: Map[String, Tensor]         // Item features
 )
 ```
 
-## 示例
+## Examples
 
-所有示例位于 `src/main/scala/examples/` 和 `src/main/scala/tutorials/`
+All examples are located in `src/main/scala/examples/` and `src/main/scala/tutorials/`
 
-### 运行示例
+### Running Examples
 
 ```bash
-# 编译项目
+# Compile project
 sbt compile
 
-# 运行 QuickStart CTR 教程
+# Run QuickStart CTR tutorial
 sbt "runMain tutorials.QuickStartCTR"
 
-# 运行 DeepFM 示例
+# Run DeepFM example
 sbt "runMain examples.ranking.DeepFMExample"
 
-# 运行 DSSM 召回示例
+# Run DSSM matching example
 sbt "runMain tutorials.MatchingDSSM"
 
-# 运行 MMOE 多任务示例
+# Run MMOE multi-task example
 sbt "runMain tutorials.MultiTaskMMOE"
 
-# 运行完整 Benchmark
+# Run full Benchmark
 sbt "runMain benchmarks.BenchmarkRunner"
 ```
 
-### BenchmarkRunner 输出示例
+### BenchmarkRunner Sample Output
 
 ```
 ============================================================
@@ -424,20 +424,186 @@ multitask   MMOE        synthetic              0.00s 10000000.00/scvr_auc=0.7500
 ================================================================================
 ```
 
-## 贡献指南
+## Contributing
 
-欢迎贡献代码！请遵循以下步骤：
+Contributions are welcome! Please follow these steps:
 
-1. Fork 本仓库
-2. 创建特性分支 (`git checkout -b feature/amazing-feature`)
-3. 提交更改 (`git commit -m 'Add amazing feature'`)
-4. 推送到分支 (`git push origin feature/amazing-feature`)
-5. 创建 Pull Request
+1. Fork this repository
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Create a Pull Request
 
-## 许可证
+## License
 
-本项目采用 MIT 许可证 - 详见 [LICENSE](LICENSE) 文件
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details
 
 ---
 
-*最后更新: 2026-06-06*
+*Last updated: 2026-06-06*
+
+
+<div align="center">
+
+# Torch-RecHub-Scala: A Production-Ready Lightweight Scala Recommender System Framework (JavaCPP / libtorch Native Interoperability)
+
+**Scala Edition Note**: This repository is a Scala port/engineering version of Torch-RecHub, deeply integrated with JavaCPP's PyTorch bindings (org.bytedeco.pytorch), providing:
+
+- Bidirectional interoperability with native JavaCPP `Dataset` / `DataLoader` (Scala Dataset <-> JavaDataset/JavaTensorDataset);
+- High-quality adapters (Scala -> Java) and wrappers (Java -> Scala), supporting Random / Sequential / Stream / Stateful / Distributed scenarios;
+- `JavaBackedDataLoader` (and enhanced version `JavaBackedDataLoaderEnhanced`), allowing direct use of JavaCPP's DataLoader/Dataset as backend, consumed as `Iterable[Batch]` on the Scala side;
+- Preserving Scala native APIs (`Dataset` trait / `Batch` case class / `DataLoader`) while providing seamless switching to JavaCPP's native data pipeline.
+
+</div>
+
+
+## Key Features
+
+- Native interoperability: Scala `Dataset` ⇄ JavaCPP `JavaDataset` / `JavaTensorDataset` mutual conversion;
+- DataLoader factories: `JavaDataLoaderFactory` + `DataLoader` companion `fromJava*` factories, providing both JavaCPP DataLoader and Scala-iterable `DataLoader`;
+- `JavaBackedDataLoader`: decodes JavaCPP Example/TensorExample vectors back to Scala `Batch`, ready for existing Scala training/evaluation pipelines;
+- Encoding conventions: `Batch` companion provides `toExample` / `fromExample` methods, supporting sparse/dense/label packing/unpacking; enhanced `JavaBackedDataLoaderEnhanced` provides `EncodingConfig` with default aggregation strategies (first/last/mean/length) for sequence/tokens fields;
+- Non-invasive: does not modify existing Scala APIs; achieves interoperability through adapters/wrappers, avoiding JVM method signature conflicts.
+
+
+## Quick Reference
+
+- Installation & Build (sbt)
+- Running Examples & Smoke Tests
+- Scala ↔ JavaCPP Interoperability Guide (API & Encoding Conventions)
+- DataLoader & Adapter Quick Reference
+- Encoding Configuration (sequence/token strategies)
+- FAQ & Troubleshooting
+
+
+---
+
+## Requirements (Build / Runtime)
+
+- JDK 11+ (Azul / OpenJDK recommended)
+- sbt 1.5+ (project uses Scala 3)
+- Native libtorch binaries from JavaCPP must be loadable at runtime (to run JavaCPP's native DataLoader/training pipeline)
+  - In most cases, org.bytedeco.pytorch Maven dependencies auto-extract native libraries at runtime. For specific platforms (GPU, ROCm, Ascend), ensure the corresponding native toolchain and drivers are properly installed.
+- For compilation/development only: JDK + sbt is sufficient.
+
+
+## Build & Compile
+
+From the repository root:
+
+```bash
+# Enter project
+cd /home/muller/IdeaProjects/torch-rechub-scala
+
+# Compile project
+sbt compile
+```
+
+- If you see runtime errors about native libraries (e.g., libtorch not found), it is usually a runtime loading issue for JavaCPP native libs, but compilation itself should still pass.
+
+
+## Quick Examples (Scala)
+
+The examples below demonstrate how to:
+- Construct a JavaCPP DataLoader using Scala native `TensorDataset` (via factories), and how to use `JavaBackedDataLoader` to consume JavaCPP Dataset as backend and iterate as `Batch` on the Scala side.
+
+Example: create a small in-memory TensorDataset, then construct a Java-backed DataLoader:
+
+```scala
+import torchrec.data._
+import org.bytedeco.pytorch._
+import torchrec.Implicits._
+
+// Construct simple tensors (Impls for creating Tensor assumed available)
+val f1 = tensor(Array(1f,2f,3f), Array(3L)) // Example: 3 samples
+val f2 = tensor(Array(10f,20f,30f), Array(3L))
+val labels = tensor(Array(0f,1f,0f), Array(3L))
+
+val td = new TensorDataset(Map("f1" -> f1, "f2" -> f2), Map.empty, Some(labels))
+
+// Method A: get Scala-side DataLoader (internally calls JavaDataLoaderFactory, returns scala DataLoader)
+val scalaDl: DataLoader = DataLoader.fromJavaRandomTensor(td, batchSize = 2, numWorkers = 0)
+for (batch <- scalaDl) {
+  println("Batch sparse keys = " + batch.sparseFeatures.keys)
+  println("labels = " + batch.labels)
+}
+
+// Method B: get JavaTensorDataset directly and pass to JavaCPP factory (closer to native path)
+val javaTd: org.bytedeco.pytorch.JavaTensorDataset = td.asJavaTensorDataset()
+val jdl = org.bytedeco.pytorch.JavaRandomTensorDataLoader(javaTd, new org.bytedeco.pytorch.RandomSampler(javaTd.size()), new org.bytedeco.pytorch.DataLoaderOptions())
+// If you want to iterate as Batch on Scala layer from Java Dataset (Example -> Batch directly)
+val javaBacked = new JavaBackedDataLoader(javaTd, Seq("f1","f2"), batchSize = 2)
+for (b <- javaBacked) {
+  println(b)
+}
+```
+
+Note: the example above uses `torchrec.Implicits.tensor` to construct Tensors; refer to `torchrec.Implicits` implementation in actual code.
+
+
+## DataLoader.fromJava* and JavaBackedDataLoader
+
+The project provides the following key APIs:
+
+- `DataLoader.fromJavaRandom(backing: Dataset, batchSize, numWorkers, dropLast)`: Returns Scala `DataLoader` (Iterable[Batch]), internally calls `JavaDataLoaderFactory.random(...)` to ensure the JavaCPP path is triggered, but ultimately returns a Scala-layer `DataLoader` instance for seamless consumption by existing Scala training code.
+
+- `DataLoader.fromJavaRandomTensor(...)` / `fromJavaSequentialTensor(...)` / `fromJavaStatefulTensor(...)`: TensorExample-based variants (same semantics).
+
+- `Dataset.asJavaDataset()` / `asJavaTensorDataset()`: Convenience methods on Scala `Dataset`, returning JavaCPP native `JavaDataset` / `JavaTensorDataset` adapters, ready to be passed to JavaCPP DataLoader factories.
+
+- `JavaBackedDataLoader(javaDs: JavaDataset, featureOrder, batchSize, shuffle)`: Directly uses JavaDataset as backend, pulls Example from Java side, decodes Example to Scala `Batch` and aggregates by batchSize, returns Scala Iterable[Batch].
+
+- `JavaBackedDataLoaderEnhanced`: Supports `EncodingConfig` (sparseOrder, denseOrder, seqPolicies, tokensPolicy, includeLabel), provides simple aggregation (first/last/mean/length) for sequence/tokens fields, encoding aggregated results as single-element tensors into Example data vectors for later decoding back to Batch's sequenceFeatures / tokens fields.
+
+
+## Batch ↔ Example/TensorExample Encoding Rules (Default Implementation)
+
+- Default packing (pack) rules:
+  - 1-D data vector consists of three parts in order: [sparse values (per sparseOrder) | dense values (per denseOrder) | optional label (scalar)];
+  - Each feature's value takes the first element from the sample's corresponding tensor (single element or shape[1]); missing keys are filled with 0.
+  - Finally constructs a float tensor, then casts to Long dtype (consistent with JavaTensorDatasetAdapters implementation).
+
+- Unpacking (unpack) rules:
+  - Splits data vector per sparseOrder/denseOrder, reconstructs single-element tensors into Batch.sparseFeatures / Batch.denseFeatures;
+  - If `includeLabel=true`, the single scalar at the end of the data vector maps to Batch.labels;
+  - sequence/tokens: for complex variable-length sequence fields, the default implementation encodes aggregation metrics (e.g., first/last/mean/length) as single-element tensors and places them in Batch.sequenceFeatures or Batch.tokens (see `EncodingConfig` strategies).
+
+
+## Step-by-Step Guide: Migrating examples/benchmarks/tutorials to JavaCPP DataLoader
+
+1. Keep existing Scala DataLoader calls unchanged, prefer using `DataLoader.fromJava*` which returns Scala `DataLoader`; most example code can then consume `for(batch <- dataloader)` without modification;
+2. When you want to go fully native: convert your Scala Dataset to `JavaTensorDataset` via `asJavaTensorDataset()`, then call `JavaDataLoaderFactory.randomTensor(...)` (or manually create DataLoader with JavaCPP APIs), and use `JavaBackedDataLoader` to decode Java DataLoader results back to Scala `Batch` if needed;
+3. Points to watch during migration:
+   - Ensure `featureOrder` (feature order) is consistent between Scala packing and Java unpacking;
+   - If using enhanced encoding for sequence/tokens, set the same `seqPolicies` / `tokensPolicy` in `EncodingConfig`;
+   - If you encounter native library loading errors at runtime (common on GPU/ROCm/Ascend platforms), follow platform/driver documentation to fix, or run CPU-only mode in CI ( Scala compilation + unit tests only).
+
+
+## FAQ & Troubleshooting
+
+- `sbt compile` fails but logs show JavaCPP native library issues: usually means compilation passed, but some compile-time or runtime tasks attempted to load native libs causing exceptions. Compilation itself should succeed; if running sample programs fails, check `LD_LIBRARY_PATH`, drivers, CUDA / ROCm readiness, or try launching in CPU-only mode (set appropriate JVM environment variables).
+
+- Fields missing after decoding Example/TensorExample back: check if `featureOrder` is consistent, confirm that sparseOrder/denseOrder/includeLabel configuration used during packing matches the `EncodingConfig` used during unpacking.
+
+- Want to "make your existing Scala Dataset inherit from JavaCPP's JavaDataset"?
+  - Not recommended: JavaCPP's Dataset method signatures (returning Example/TensorExample) conflict with Scala trait's `get(index): Batch` return type, causing method signature conflicts that prevent compilation.
+  - Use the adapter/wrapper approach (already provided in the project), which is non-invasive and more robust.
+
+
+## Development Workflow / Testing Suggestions (Harness Engineer Style)
+
+1. Local compilation: `sbt compile` (ensure all compiler warnings are addressed).
+2. Unit tests: if tests are added later, run `sbt test`.
+3. Smoke-run: choose a small example (e.g., smallest dataset in `examples/...`), create loader with `DataLoader.fromJavaRandomTensor`, `println` the first batch's shapes in a Main, confirm that decoding mapping matches model input dimensions.
+4. For full native path: on supported platforms, run `JavaRandomTensorDataLoader` and use `JavaBackedTensorDataLoaderEnhanced` for decoding, watch runtime logs for native library loading messages to confirm success.
+
+
+## License & Contributing
+
+- This project is licensed under the MIT License (see LICENSE file).
+- Pull requests, issues, and discussions about design and implementation details are all welcome.
+
+
+---
+
+*Last updated: 2026-06-06*

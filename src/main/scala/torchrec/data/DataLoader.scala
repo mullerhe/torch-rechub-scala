@@ -72,6 +72,10 @@ class DataLoader(
     var itemFeatBuilder = mutable.Map[String, mutable.ListBuffer[Tensor]]()
     var hasItemFeats = false
 
+    // Multi-task: collect per-task label tensors
+    var taskLabelBuilders = mutable.Map[String, mutable.ListBuffer[Tensor]]()
+    var hasTaskLabels = false
+
     batchIndices.foreach { idx =>
       val batch = dataset.get(idx.toLong)
 
@@ -115,6 +119,13 @@ class DataLoader(
       batch.targets.foreach { tgt =>
         targetsBuilder += tgt
         hasTargets = true
+      }
+
+      batch.taskLabels.foreach { taskMap =>
+        taskMap.foreach { case (taskName, tensor) =>
+          taskLabelBuilders.getOrElseUpdate(taskName, mutable.ListBuffer()) += tensor
+          hasTaskLabels = true
+        }
       }
     }
 
@@ -163,7 +174,13 @@ class DataLoader(
       }.toMap
     } else Map.empty[String, Tensor]
 
-    Batch(sparseTensors, denseTensors, seqTensors, labels, batchTokens, batchPositions, batchTimeDiffs, batchTargets, batchItemFeats)
+    val batchTaskLabels = if (hasTaskLabels) {
+      Some(taskLabelBuilders.map { case (name, tensors) =>
+        name -> move(tensors.toSeq.stack(0))
+      }.toMap)
+    } else None
+
+    Batch(sparseTensors, denseTensors, seqTensors, labels, batchTokens, batchPositions, batchTimeDiffs, batchTargets, batchItemFeats, batchTaskLabels)
   }
 }
 

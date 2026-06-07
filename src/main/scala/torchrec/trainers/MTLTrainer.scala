@@ -47,14 +47,10 @@ class MTLTrainer(
       while (iter.hasNext) {
         val batch = iter.next()
         val sparseFeats = batch.sparseFeatures
-        val labelsOpt = batch.labels
-
-        if (sparseFeats.isEmpty || labelsOpt.isEmpty) { /* skip */ }
+        val taskLabelsMap = batch.taskLabels
+        if (sparseFeats.isEmpty || taskLabelsMap.isEmpty) { /* skip */ }
         else {
           optimizer.zero_grad()
-
-          val labels = labelsOpt.get
-          val batchSize = labels.size(0).toInt
 
           model match {
             case mmoe: MMOE =>
@@ -63,10 +59,12 @@ class MTLTrainer(
               var totalWeight = 0.0f
 
               for (taskName <- taskNames) {
-                outputs.get(taskName) match {
-                  case Some(pred) =>
-                    val target2D = if (pred.dim() == 1) pred.reshape(batchSize, 1) else pred
-                    val label2D = labels.view(batchSize, 1).toType(ScalarType.Float)
+                outputs.get(taskName).foreach { pred =>
+                  val label = taskLabelsMap.get(taskName)
+                  if (label != null) {
+                    val actualBatchSize = label.size(0).toInt
+                    val target2D = if (pred.dim() == 1) pred.reshape(actualBatchSize, 1) else pred
+                    val label2D = label.view(actualBatchSize, 1).toType(ScalarType.Float)
                     val taskLoss = bceLoss.apply(target2D, label2D)
                     val weight = defaultWeights.getOrElse(taskName, 1.0f).toFloat
                     if (totalWeightedLoss == null) {
@@ -75,7 +73,7 @@ class MTLTrainer(
                       totalWeightedLoss = totalWeightedLoss.add(taskLoss.mul(new Scalar(weight.toDouble)))
                     }
                     totalWeight += weight
-                  case None =>
+                  }
                 }
               }
 
@@ -93,10 +91,12 @@ class MTLTrainer(
               var totalWeight = 0.0f
 
               for (taskName <- taskNames) {
-                outputs.get(taskName) match {
-                  case Some(pred) =>
-                    val target2D = if (pred.dim() == 1) pred.reshape(batchSize, 1) else pred
-                    val label2D = labels.view(batchSize, 1).toType(ScalarType.Float)
+                outputs.get(taskName).foreach { pred =>
+                  val label = taskLabelsMap.get(taskName)
+                  if (label != null) {
+                    val actualBatchSize = label.size(0).toInt
+                    val target2D = if (pred.dim() == 1) pred.reshape(actualBatchSize, 1) else pred
+                    val label2D = label.view(actualBatchSize, 1).toType(ScalarType.Float)
                     val taskLoss = bceLoss.apply(target2D, label2D)
                     val weight = defaultWeights.getOrElse(taskName, 1.0f).toFloat
                     if (totalWeightedLoss == null) {
@@ -105,7 +105,7 @@ class MTLTrainer(
                       totalWeightedLoss = totalWeightedLoss.add(taskLoss.mul(new Scalar(weight.toDouble)))
                     }
                     totalWeight += weight
-                  case None =>
+                  }
                 }
               }
 
@@ -123,10 +123,12 @@ class MTLTrainer(
               var totalWeight = 0.0f
 
               for (taskName <- taskNames) {
-                outputs.get(taskName) match {
-                  case Some(pred) =>
-                    val target2D = if (pred.dim() == 1) pred.reshape(batchSize, 1) else pred
-                    val label2D = labels.view(batchSize, 1).toType(ScalarType.Float)
+                outputs.get(taskName).foreach { pred =>
+                  val label = taskLabelsMap.get(taskName)
+                  if (label != null) {
+                    val actualBatchSize = label.size(0).toInt
+                    val target2D = if (pred.dim() == 1) pred.reshape(actualBatchSize, 1) else pred
+                    val label2D = label.view(actualBatchSize, 1).toType(ScalarType.Float)
                     val taskLoss = bceLoss.apply(target2D, label2D)
                     val weight = defaultWeights.getOrElse(taskName, 1.0f).toFloat
                     if (totalWeightedLoss == null) {
@@ -135,7 +137,7 @@ class MTLTrainer(
                       totalWeightedLoss = totalWeightedLoss.add(taskLoss.mul(new Scalar(weight.toDouble)))
                     }
                     totalWeight += weight
-                  case None =>
+                  }
                 }
               }
 
@@ -153,10 +155,12 @@ class MTLTrainer(
               var totalWeight = 0.0f
 
               for (taskName <- taskNames) {
-                outputs.get(taskName) match {
-                  case Some(pred) =>
-                    val target2D = if (pred.dim() == 1) pred.reshape(batchSize, 1) else pred
-                    val label2D = labels.view(batchSize, 1).toType(ScalarType.Float)
+                outputs.get(taskName).foreach { pred =>
+                  val label = taskLabelsMap.get(taskName)
+                  if (label != null) {
+                    val actualBatchSize = label.size(0).toInt
+                    val target2D = if (pred.dim() == 1) pred.reshape(actualBatchSize, 1) else pred
+                    val label2D = label.view(actualBatchSize, 1).toType(ScalarType.Float)
                     val taskLoss = bceLoss.apply(target2D, label2D)
                     val weight = defaultWeights.getOrElse(taskName, 1.0f).toFloat
                     if (totalWeightedLoss == null) {
@@ -165,7 +169,7 @@ class MTLTrainer(
                       totalWeightedLoss = totalWeightedLoss.add(taskLoss.mul(new Scalar(weight.toDouble)))
                     }
                     totalWeight += weight
-                  case None =>
+                  }
                 }
               }
 
@@ -223,24 +227,24 @@ class MTLTrainer(
     while (iter.hasNext) {
       val batch = iter.next()
       val sparseFeats = batch.sparseFeatures
-      val labelsOpt = batch.labels
+      val taskLabelsMap = batch.taskLabels
 
-      if (sparseFeats.isEmpty || labelsOpt.isEmpty) { /* skip */ }
+      if (sparseFeats.isEmpty || taskLabelsMap.isEmpty) { /* skip */ }
       else {
-        val labels = labelsOpt.get
-        val batchSize = labels.size(0).toInt
-        val labelArr = labels.squeeze().to(ScalarType.Float).contiguous().cpu().toFloatArray
-
         model match {
           case mmoe: MMOE =>
             val outputs = mmoe.forward(sparseFeats)
             for (taskName <- taskNames) {
               outputs.get(taskName).foreach { pred =>
-                val predArr = pred.squeeze().to(ScalarType.Float).contiguous().cpu().toFloatArray
-                val (auc, logloss, acc) = taskMetrics(taskName)
-                auc.update(predArr, labelArr)
-                logloss.update(predArr, labelArr)
-                acc.update(predArr, labelArr)
+                val label = taskLabelsMap.get(taskName)
+                if (label != null) {
+                  val labelArr = label.squeeze().to(ScalarType.Float).contiguous().cpu().toFloatArray
+                  val predArr = pred.squeeze().to(ScalarType.Float).contiguous().cpu().toFloatArray
+                  val (auc, logloss, acc) = taskMetrics(taskName)
+                  auc.update(predArr, labelArr)
+                  logloss.update(predArr, labelArr)
+                  acc.update(predArr, labelArr)
+                }
               }
             }
 
@@ -248,11 +252,15 @@ class MTLTrainer(
             val outputs = sb.forward(sparseFeats)
             for (taskName <- taskNames) {
               outputs.get(taskName).foreach { pred =>
-                val predArr = pred.squeeze().to(ScalarType.Float).contiguous().cpu().toFloatArray
-                val (auc, logloss, acc) = taskMetrics(taskName)
-                auc.update(predArr, labelArr)
-                logloss.update(predArr, labelArr)
-                acc.update(predArr, labelArr)
+                val label = taskLabelsMap.get(taskName)
+                if (label != null) {
+                  val labelArr = label.squeeze().to(ScalarType.Float).contiguous().cpu().toFloatArray
+                  val predArr = pred.squeeze().to(ScalarType.Float).contiguous().cpu().toFloatArray
+                  val (auc, logloss, acc) = taskMetrics(taskName)
+                  auc.update(predArr, labelArr)
+                  logloss.update(predArr, labelArr)
+                  acc.update(predArr, labelArr)
+                }
               }
             }
 
@@ -260,11 +268,15 @@ class MTLTrainer(
             val outputs = ple.forward(sparseFeats)
             for (taskName <- taskNames) {
               outputs.get(taskName).foreach { pred =>
-                val predArr = pred.squeeze().to(ScalarType.Float).contiguous().cpu().toFloatArray
-                val (auc, logloss, acc) = taskMetrics(taskName)
-                auc.update(predArr, labelArr)
-                logloss.update(predArr, labelArr)
-                acc.update(predArr, labelArr)
+                val label = taskLabelsMap.get(taskName)
+                if (label != null) {
+                  val labelArr = label.squeeze().to(ScalarType.Float).contiguous().cpu().toFloatArray
+                  val predArr = pred.squeeze().to(ScalarType.Float).contiguous().cpu().toFloatArray
+                  val (auc, logloss, acc) = taskMetrics(taskName)
+                  auc.update(predArr, labelArr)
+                  logloss.update(predArr, labelArr)
+                  acc.update(predArr, labelArr)
+                }
               }
             }
 
@@ -272,11 +284,15 @@ class MTLTrainer(
             val outputs = esmm.forward(sparseFeats)
             for (taskName <- taskNames) {
               outputs.get(taskName).foreach { pred =>
-                val predArr = pred.squeeze().to(ScalarType.Float).contiguous().cpu().toFloatArray
-                val (auc, logloss, acc) = taskMetrics(taskName)
-                auc.update(predArr, labelArr)
-                logloss.update(predArr, labelArr)
-                acc.update(predArr, labelArr)
+                val label = taskLabelsMap.get(taskName)
+                if (label != null) {
+                  val labelArr = label.squeeze().to(ScalarType.Float).contiguous().cpu().toFloatArray
+                  val predArr = pred.squeeze().to(ScalarType.Float).contiguous().cpu().toFloatArray
+                  val (auc, logloss, acc) = taskMetrics(taskName)
+                  auc.update(predArr, labelArr)
+                  logloss.update(predArr, labelArr)
+                  acc.update(predArr, labelArr)
+                }
               }
             }
 

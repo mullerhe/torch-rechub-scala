@@ -129,7 +129,9 @@ case class Batch(
   timeDiffs: Option[Tensor] = None,
   targets: Option[Tensor] = None,
   // Two-tower matching fields
-  itemFeatures: Map[String, Tensor] = Map.empty
+  itemFeatures: Map[String, Tensor] = Map.empty,
+  // Multi-task fields
+  taskLabels: Option[Map[String, Tensor]] = None
 ) {
   def to(device: String): Batch = {
     val d = new Device(device)
@@ -143,7 +145,8 @@ case class Batch(
       positions.map(move),
       timeDiffs.map(move),
       targets.map(move),
-      itemFeatures.map { case (k, v) => k -> move(v) }
+      itemFeatures.map { case (k, v) => k -> move(v) },
+      taskLabels.map(_.map { case (k, v) => k -> move(v) })
     )
   }
 
@@ -397,7 +400,8 @@ class MultiTaskDataset(
       features.map { case (k, v) => k -> v.select(0, index) },
       Map.empty,
       Map.empty,
-      None  // Labels handled separately for multi-task
+      None,
+      taskLabels = Some(taskLabels.map { case (k, v) => k -> v.select(0, index) })
     )
   }
 

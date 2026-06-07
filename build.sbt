@@ -4,6 +4,22 @@
 ThisBuild / scalaVersion := "3.8.3"
 ThisBuild / version := "0.1.0-SNAPSHOT"
 ThisBuild / organization := "torchrec"
+scalacOptions += "-experimental"
+fork := true
+javaOptions += "--add-modules=jdk.incubator.vector"
+javaOptions += "--add-exports=jdk.incubator.vector/jdk.incubator.vector=ALL-UNNAMED"
+lazy val currentPlatformClassifier = {
+  val os = sys.props("os.name").toLowerCase
+  val arch = sys.props("os.arch").toLowerCase
+  if (os.contains("mac")) {
+    if (arch.contains("aarch64") || arch.contains("arm64")) "macosx-arm64" else "macosx-x86_64"
+  } else if (os.contains("linux")) {
+    if (arch.contains("aarch64") || arch.contains("arm64")) "linux-arm64" else "linux-x86_64"
+  } else if (os.contains("win")) {
+    if (arch.contains("aarch64") || arch.contains("arm64")) "windows-arm64" else "windows-x86_64"
+  } else "linux-x86_64"
+}
+//ThisBuild / javaOutputVersion := Some("21")
 
 //val pytorchVersion = "2.12.0-1.5.14-SNAPSHOT"
 

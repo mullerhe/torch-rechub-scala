@@ -32,8 +32,8 @@ class YoutubeDNN(
   register_module("sequenceEmbedding", sequenceEmbedding)
 
   // MLP tower
-  private val featSparseDim = features.collect { case f: SparseFeature => 1 }.size * embedDim
-  private val seqSparseDim = sequenceFeatures.size * embedDim
+  private val featSparseDim = Features.calcSparseDim(features)
+  private val seqSparseDim = sequenceFeatures.map(_.embedDim).sum
   private val totalInputDim = featSparseDim + seqSparseDim
 
   private val tower = new MLP(totalInputDim, towerDims, embedDim, "relu", dropout, device = device)

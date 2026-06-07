@@ -23,7 +23,7 @@ class DCN(
   private val embeddingLayer = new EmbeddingLayer(features, embedDim, device)
   register_module("embedding", embeddingLayer)
 
-  private val sparseDim = features.collect { case f: SparseFeature => 1 }.size * embedDim
+  private val sparseDim = Features.calcSparseDim(features)
 
   // Cross network
   private val crossNet = new CrossNetwork(sparseDim, numCrossLayers, device)

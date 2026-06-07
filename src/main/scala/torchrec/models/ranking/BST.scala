@@ -53,8 +53,8 @@ class BST(
   }
 
   // MLP for final prediction
-  private val sparseDim = features.collect { case f: SparseFeature => 1 }.size * embedDim
-  private val sequenceDim = sequenceFeatures.size * embedDim
+  private val sparseDim = Features.calcSparseDim(features)
+  private val sequenceDim = sequenceFeatures.map(_.embedDim).sum
   private val totalDim = sparseDim + sequenceDim
   private val mlp = new MLP(totalDim, mlpDims, 1, "relu", dropout, false, device = device)
   register_module("mlp", mlp)

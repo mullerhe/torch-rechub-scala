@@ -36,7 +36,7 @@ class ComirecSA(
   register_module("interestExtractor", interestExtractor)
 
   // MLP
-  private val featSparseDim = features.collect { case f: SparseFeature => 1 }.size * embedDim
+  private val featSparseDim = Features.calcSparseDim(features)
   private val totalInputDim = featSparseDim + numInterests * embedDim
 
   private val tower = new MLP(totalInputDim, mlpDims, embedDim, "relu", dropout, device = device)

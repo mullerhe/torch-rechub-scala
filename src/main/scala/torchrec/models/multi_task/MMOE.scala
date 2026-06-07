@@ -53,13 +53,21 @@ class MMOE(
     sparseFeats: Map[String, Tensor],
     denseFeats: Map[String, Tensor] = Map.empty
   ): Map[String, Tensor] = {
+    // EmbeddingLayer.forward() returns (batch, numFields * embedDim)
     val embeddings = embeddingLayer.forward(sparseFeats)
+    val batchSize = embeddings.size(0)
+
+    // Reshape to (batch, numFields, embedDim) then sum-pool over fields
+    // so gates and experts receive (batch, embedDim) regardless of numFields
+    val numSparseFeatures = features.collect { case f: SparseFeature => 1 }.size
+    val reshaped = embeddings.view(batchSize, numSparseFeatures.toLong, embedDim.toLong)
+    val pooled = reshaped.sum(1) // (batch, embedDim)
 
     // Expert outputs
-    val expertOutputs = experts.map(_.forward(embeddings))
+    val expertOutputs = experts.map(_.forward(pooled))
 
     taskNames.map { name =>
-      val gateWeights = gates(name).forward(embeddings).softmax(1) // (batch, num_experts)
+      val gateWeights = gates(name).forward(pooled).softmax(1) // (batch, num_experts)
 
       // Weighted sum of expert outputs
       val weightedExperts = expertOutputs.zipWithIndex.map { case (expertOut, i) =>
@@ -68,7 +76,7 @@ class MMOE(
       val combined = weightedExperts.reduce(_.add(_))
 
       val taskOut = taskTowers(name).forward(combined)
-      (name, taskOut.sigmoid())
+      (name, taskOut)
     }.toMap
   }
 }

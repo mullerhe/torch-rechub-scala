@@ -23,7 +23,7 @@ class SharedBottom(
   private val embeddingLayer = new EmbeddingLayer(features, embedDim, device)
   register_module("embedding", embeddingLayer)
 
-  private val sparseDim = features.collect { case f: SparseFeature => 1 }.size * embedDim
+  private val sparseDim = Features.calcSparseDim(features)
 
   // Shared bottom
   private val sharedBottom = new MLP(sparseDim, sharedDims, sharedDims.last, "relu", dropout, device = device)
@@ -45,7 +45,7 @@ class SharedBottom(
 
     taskNames.map { name =>
       val taskOut = taskTowers(name).forward(sharedOut)
-      (name, taskOut.sigmoid())
+      (name, taskOut)
     }.toMap
   }
 }

@@ -82,14 +82,22 @@ object Features {
   def getSequenceFeatures(features: List[Feature]): List[SequenceFeature] =
     features.collect { case f: SequenceFeature => f }
 
-  /** Calculate total embedding dimension for sparse features */
-  def calcSparseDim(features: List[Feature], embedDim: Int): Long =
-    getSparseFeatures(features).length * embedDim
+  /** Calculate total embedding dimension for sparse features.
+   *  All SparseFeatures must have the same embedDim; uses per-feature f.embedDim.
+   */
+  def calcSparseDim(features: List[Feature]): Long =
+    getSparseFeatures(features).map(_.embedDim).sum
 
-  /** Calculate total embedding dimension for sequence features with pooling */
-  def calcSequenceDim(features: List[SequenceFeature], embedDim: Int, pooling: String = "mean"): Long =
+  /** Calculate total embedding dimension for sequence features with pooling.
+   *  Uses per-feature f.embedDim for concat pooling.
+   */
+  def calcSequenceDim(features: List[SequenceFeature], pooling: String = "mean"): Long =
     pooling match {
-      case "concat" => getSequenceFeatures(features).length * embedDim
-      case _ => embedDim
+      case "concat" => getSequenceFeatures(features).map(_.embedDim).sum
+      case _ => getSequenceFeatures(features).headOption.map(_.embedDim.toLong).getOrElse(0L)
     }
+
+  /** Calculate total embedding dimension for sequence features (from mixed Feature list). */
+  def calcSequenceDimFromFeatures(features: List[Feature], pooling: String = "mean"): Long =
+    calcSequenceDim(getSequenceFeatures(features), pooling)
 }

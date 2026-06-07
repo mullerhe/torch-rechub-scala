@@ -154,14 +154,14 @@ object RealDataBenchmark {
       val valLoader = DataLoader.fromJavaSequential(valDS, batchSize = 256L)
 
       // Census features: 14 total
-      // Categorical (sparse): workclass, education, education_num, marital-status,
-      //                       occupation, relationship, race, sex, native-country
-      // Numerical (dense): age, fnlwgt, capital-gain, capital-loss, hours-per-week
-      // We use hash encoding so vocab sizes are small (~100)
+      // Categorical (sparse): workclass, education, marital-status,
+      //                       occupation, relationship, race, sex, native-country (8 features)
+      // Numerical (dense): age, fnlwgt, education-num, capital-gain, capital-loss,
+      //                    hours-per-week (6 features — not used as sparse in DeepFM)
+      // NOTE: education_num (index 4) is numerical in CensusIncomeDataset, not categorical
       val features = List(
         SparseFeature("workclass",      100, 4),
         SparseFeature("education",      100, 4),
-        SparseFeature("education_num",  100, 4),
         SparseFeature("marital_status", 100, 4),
         SparseFeature("occupation",     100, 4),
         SparseFeature("relationship",   100, 4),

@@ -35,9 +35,11 @@ class DeepFM(
   private val fm = new FM(embedDim, device)
   register_module("fm", fm)
 
-  // Deep part
-  private val sparseDim = features.collect { case f: SparseFeature => 1 }.size * embedDim
-  private val mlp = new MLP(sparseDim.toLong, mlpDims.map(_.toLong), 1, "relu", dropout, false, device = device)
+  // Deep part — sparseDim is computed dynamically in forward() from the actual
+  // embedding tensor shape to guarantee consistency with the incoming sparseFeats.
+  // MLP in-features computed from each SparseFeature's actual embedDim.
+  private val sparseDimConstructor = features.collect { case f: SparseFeature => f.embedDim }.sum
+  private val mlp = new MLP(sparseDimConstructor.toLong, mlpDims.map(_.toLong), 1, "relu", dropout, false, device = device)
   register_module("mlp", mlp)
 
   // Move all submodules to device
@@ -66,6 +68,12 @@ class DeepFM(
     val embListOnDev = embList.map(e => if (e.device().equals(targetDev)) e else e.to(targetDev, e.dtype()))
     val embeddings3D = embListOnDev.stack(1) // (batch, num_fields, embed_dim)
 
+    // Derive sparseDim dynamically from the actual embedding tensor so it always
+    // matches the number of fields that are present in sparseFeats.
+    val numFields = embeddings3D.size(1)
+    val embedDimActual = embeddings3D.size(2)
+    val sparseDimDyn = (numFields * embedDimActual).toLong
+
     // First-order: linear (zero placeholder)
     val batchSize = embeddings3D.size(0)
     val linearOut = torch.zeros(Array(batchSize.toLong, 1L),
@@ -75,8 +83,8 @@ class DeepFM(
     // Second-order: FM interactions
     val fmOut = fm.forward(embeddings3D)
 
-    // Deep part: flatten to (batch, sparseDim) before MLP
-    val mlpIn = embeddings3D.view(batchSize, sparseDim.toLong)
+    // Deep part: flatten to (batch, sparseDimDyn) before MLP
+    val mlpIn = embeddings3D.view(batchSize, sparseDimDyn)
     val mlpOut = mlp.forward(mlpIn)
 
     // Combine (raw logits — BCEWithLogitsLoss handles sigmoid internally)

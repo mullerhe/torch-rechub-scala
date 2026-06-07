@@ -25,7 +25,7 @@ class WideDeep(
   private val embeddingLayer = new EmbeddingLayer(features, embedDim, device)
   register_module("embedding", embeddingLayer)
 
-  private val sparseDim = features.collect { case f: SparseFeature => 1 }.size * embedDim
+  private val sparseDim = Features.calcSparseDim(features)
   private val mlp = new MLP(sparseDim, mlpDims.map(_.toLong), 1, "relu", dropout, device = device)
   register_module("mlp", mlp)
 

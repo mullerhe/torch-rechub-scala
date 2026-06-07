@@ -23,7 +23,7 @@ class ESMM(
   private val embeddingLayer = new EmbeddingLayer(features, embedDim, device)
   register_module("embedding", embeddingLayer)
 
-  private val sparseDim = features.collect { case f: SparseFeature => 1 }.size * embedDim
+  private val sparseDim = Features.calcSparseDim(features)
 
   // Shared bottom
   private val sharedBottom = new MLP(sparseDim, towerDims.init, towerDims.last, "relu", dropout, device = device)
@@ -45,7 +45,7 @@ class ESMM(
 
     taskNames.map { name =>
       val taskOut = taskTowers(name).forward(sharedOut)
-      (name, taskOut.sigmoid())
+      (name, taskOut)
     }.toMap
   }
 
@@ -55,6 +55,6 @@ class ESMM(
   ): Tensor = {
     val embeddings = embeddingLayer.forward(sparseFeats)
     val sharedOut = sharedBottom.forward(embeddings)
-    taskTowers(taskName).forward(sharedOut).sigmoid()
+    taskTowers(taskName).forward(sharedOut)
   }
 }

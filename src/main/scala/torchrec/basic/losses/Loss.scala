@@ -15,14 +15,13 @@ class BCELoss(
 ) {
   def apply(predictions: Tensor, targets: Tensor): Tensor = {
     val dev = predictions.device()
-    val epsTensor = torch.full(Array(1L), new Scalar(1e-7f)).to(dev, ScalarType.Float)
-    val oneMinusEpsTensor = torch.full(Array(1L), new Scalar(1.0f - 1e-7f)).to(dev, ScalarType.Float)
-    val oneTensor = torch.full(Array(1L), new Scalar(1.0f)).to(dev, ScalarType.Float)
-    val clipped = predictions.maximum(epsTensor).minimum(oneMinusEpsTensor)
+    val eps: Float = 1e-7f
+    // torch.clamp with scalar args preserves the requires_grad graph correctly
+    val clipped = predictions.clamp(new ScalarOptional(new Scalar(eps)) , new ScalarOptional(new Scalar(1.0f - eps)))
     val logClipped = clipped.log()
-    val oneMinusClipped = clipped.neg().add(oneTensor)
-    val logOneMinusClipped = oneMinusClipped.log()
-    val loss = targets.mul(logClipped.neg()).add(targets.neg().add(oneTensor).mul(logOneMinusClipped.neg()))
+    val oneMinusClipped = predictions.neg().add(new Scalar(1.0f)).clamp(new ScalarOptional(new Scalar(eps)), new ScalarOptional(new Scalar(1.0f - eps))).log()
+    val loss = targets.mul(logClipped.neg())
+      .add(targets.neg().add(new Scalar(1.0f)).mul(oneMinusClipped.neg()))
 
     reduction match {
       case "sum" => loss.sum()

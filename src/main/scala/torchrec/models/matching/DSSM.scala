@@ -24,7 +24,7 @@ class DSSM(
   private val userEmbedding = new EmbeddingLayer(userFeatures, embedDim, device)
   register_module("userEmbedding", userEmbedding)
 
-  private val userSparseDim = userFeatures.collect { case f: SparseFeature => 1 }.size * embedDim
+  private val userSparseDim = Features.calcSparseDim(userFeatures)
   private val userTower = new MLP(userSparseDim, towerDims, embedDim, "relu", dropout, device = device)
   register_module("userTower", userTower)
 
@@ -32,7 +32,7 @@ class DSSM(
   private val itemEmbedding = new EmbeddingLayer(itemFeatures, embedDim, device)
   register_module("itemEmbedding", itemEmbedding)
 
-  private val itemSparseDim = itemFeatures.collect { case f: SparseFeature => 1 }.size * embedDim
+  private val itemSparseDim = Features.calcSparseDim(itemFeatures)
   private val itemTower = new MLP(itemSparseDim, towerDims, embedDim, "relu", dropout, device = device)
   register_module("itemTower", itemTower)
 

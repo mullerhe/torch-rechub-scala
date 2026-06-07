@@ -62,7 +62,13 @@ class PLE(
     denseFeats: Map[String, Tensor] = Map.empty
   ): Map[String, Tensor] = {
     val embeddings = embeddingLayer.forward(sparseFeats)
-    var currentInput = embeddings
+    val batchSize = embeddings.size(0)
+
+    // Reshape to (batch, numFields, embedDim) then sum-pool over fields
+    // so gates and experts receive (batch, embedDim) regardless of numFields
+    val numSparseFeatures = features.collect { case f: SparseFeature => 1 }.size
+    val reshaped = embeddings.view(batchSize, numSparseFeatures.toLong, embedDim.toLong)
+    var currentInput = reshaped.sum(1) // (batch, embedDim)
     var result: Map[String, Tensor] = Map.empty
 
     // Progressive extraction layers
@@ -91,7 +97,7 @@ class PLE(
           }
           val combined = weightedExperts.reduce(_.add(_))
           val taskOut = taskTowers(name).forward(combined)
-          (name, taskOut.sigmoid())
+          (name, taskOut)
         }.toMap
         layerIdx = numLayers // Exit loop
 

@@ -10,7 +10,7 @@ import torchrec.Implicits._
 import torchrec.data.DataLoader
 import torchrec.models.multi_task._
 import torchrec.basic.metrics._
-import torchrec.basic.losses.BCELoss
+import torchrec.basic.losses.{BCELoss, BCEWithLogitsLoss}
 import torchrec.utils.DeviceSupport
 
 /**
@@ -28,7 +28,7 @@ class MTLTrainer(
   verbose: Boolean = true
 ) {
   private val optimizer = new Adam(model.parameters(), new AdamOptions(learningRate.toDouble))
-  private val bceLoss = new BCELoss()
+  private val bceLoss = new BCEWithLogitsLoss()
   private val defaultWeights = taskWeights.getOrElse(taskNames.map(_ -> 1.0f).toMap)
 
   def fit(

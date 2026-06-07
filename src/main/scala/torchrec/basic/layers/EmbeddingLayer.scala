@@ -31,7 +31,7 @@ class EmbeddingLayer(
   features.foreach {
     case f: SparseFeature =>
       if (!f.sharedWith.exists(sharedEmbeddingTables.contains)) {
-        val options = new EmbeddingOptions(f.vocabSize, embedDim)
+        val options = new EmbeddingOptions(f.vocabSize, f.embedDim)
         f.paddingIdx.foreach { idx =>
           options.padding_idx().put(idx)
         }
@@ -51,7 +51,7 @@ class EmbeddingLayer(
 
     case f: SequenceFeature =>
       if (!f.sharedWith.exists(sharedEmbeddingTables.contains)) {
-        val options = new EmbeddingOptions(f.vocabSize, embedDim)
+        val options = new EmbeddingOptions(f.vocabSize, f.embedDim)
         if (f.paddingIdx != 0) {
           options.padding_idx().put(f.paddingIdx)
         }

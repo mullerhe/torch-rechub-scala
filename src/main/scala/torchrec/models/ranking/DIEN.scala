@@ -35,7 +35,7 @@ class DIEN(
   register_module("sequenceEmbedding", sequenceEmbedding)
 
   // MLP for final prediction
-  private val sparseDim = features.collect { case f: SparseFeature => 1 }.size * embedDim
+  private val sparseDim = Features.calcSparseDim(features)
   private val totalDim = sparseDim + embedDim
   private val mlp = new MLP(totalDim, mlpDims, 1, "relu", dropout, false, device = device)
   register_module("mlp", mlp)

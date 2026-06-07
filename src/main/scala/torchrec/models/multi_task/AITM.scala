@@ -48,13 +48,20 @@ class AITM(
     denseFeats: Map[String, Tensor] = Map.empty
   ): Map[String, Tensor] = {
     val emb = embedding.forward(sparseFeats)
-    val encoded = encoder.forward(emb)
+    val batchSize = emb.size(0)
+
+    // Reshape to (batch, numFields, embedDim) then sum-pool over fields
+    val numSparseFeatures = features.collect { case f: SparseFeature => 1 }.size
+    val reshaped = emb.view(batchSize, numSparseFeatures.toLong, embedDim.toLong)
+    val pooled = reshaped.sum(1) // (batch, embedDim)
+
+    val encoded = encoder.forward(pooled)
 
     // Apply adversarial information transfer
     taskNames.map { name =>
       val gated = encoded.mul(transferGates(name).forward(encoded).sigmoid())
       val output = towers(name).forward(gated)
-      (name, output.sigmoid())
+      (name, output)
     }.toMap
   }
 

@@ -37,8 +37,8 @@ class DIN(
   register_module("attentionNet", attentionNet)
 
   // MLP
-  private val totalDim = features.collect { case f: SparseFeature => 1 }.size * embedDim +
-                          sequenceFeatures.size * embedDim
+  private val totalDim = Features.calcSparseDim(features) +
+                          sequenceFeatures.map(_.embedDim).sum
   private val mlp = new MLP(totalDim, mlpDims.map(_.toLong), 1, "relu", dropout, device = device)
   register_module("mlp", mlp)
 

@@ -41,7 +41,7 @@ class DeepFFM(
   register_module("ffm", ffm)
 
   // Deep part: MLP
-  private val sparseDim = features.collect { case f: SparseFeature => 1 }.size * embedDim
+  private val sparseDim = Features.calcSparseDim(features)
   private val mlp = new MLP(sparseDim, mlpDims, 1, "relu", dropout, false, device = device)
   register_module("mlp", mlp)
 

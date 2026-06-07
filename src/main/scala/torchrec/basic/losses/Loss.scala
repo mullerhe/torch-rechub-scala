@@ -49,7 +49,9 @@ class BCELoss(
 
 class BCEWithLogitsLoss(reduction: String = "mean") {
   def apply(predictions: Tensor, targets: Tensor): Tensor = {
-    torch.binary_cross_entropy_with_logits(predictions, targets) match {
+    val dev = predictions.device()
+    val targetsOnDev = if (!targets.device().equals(dev)) targets.to(dev, targets.dtype()) else targets
+    torch.binary_cross_entropy_with_logits(predictions, targetsOnDev) match {
       case loss if reduction == "sum" => loss.sum()
       case loss if reduction == "none" => loss
       case loss => loss.mean()
@@ -62,7 +64,9 @@ class CrossEntropyLoss(
   labelSmoothing: Float = 0.0f
 ) {
   def apply(predictions: Tensor, targets: Tensor): Tensor = {
-    val loss = torch.cross_entropy(predictions, targets)
+    val dev = predictions.device()
+    val targetsOnDev = if (!targets.device().equals(dev)) targets.to(dev, targets.dtype()) else targets
+    val loss = torch.cross_entropy(predictions, targetsOnDev)
     reduction match {
       case "sum" => loss.sum()
       case "none" => loss
@@ -124,9 +128,12 @@ class InBatchNCELoss(temperature: Float = 0.07f) {
 
 class MaskedCrossEntropyLoss {
   def apply(logits: Tensor, targets: Tensor, mask: Tensor): Tensor = {
-    val loss = torch.cross_entropy(logits, targets.toType(ScalarType.Long))
-    val maskedLoss = loss.mul(mask)
-    maskedLoss.sum().div(mask.sum())
+    val dev = logits.device()
+    val targetsOnDev = targets.to(dev, ScalarType.Long)
+    val loss = torch.cross_entropy(logits, targetsOnDev)
+    val maskOnDev = if (!mask.device().equals(dev)) mask.to(dev, mask.dtype()) else mask
+    val maskedLoss = loss.mul(maskOnDev)
+    maskedLoss.sum().div(maskOnDev.sum())
   }
 }
 
@@ -135,8 +142,10 @@ class FocalLoss(
   gamma: Float = 2.0f
 ) {
   def apply(predictions: Tensor, targets: Tensor): Tensor = {
+    val dev = predictions.device()
+    val targetsOnDev = if (!targets.device().equals(dev)) targets.to(dev, targets.dtype()) else targets
     val p = predictions.sigmoid()
-    val ceLoss = torch.binary_cross_entropy(predictions, targets)
+    val ceLoss = torch.binary_cross_entropy(predictions, targetsOnDev)
     val one = new Scalar(1.0f)
     val pTerm = p.mul(targets).add(p.neg().add(one).mul(targets.neg().add(one)))
     val focalWeight = pTerm.neg().add(one).pow(new Scalar(gamma.toDouble))

@@ -46,6 +46,11 @@ class BST(
   private val layernorm = new LayerNormImpl(new LongVector(embedDim.toLong))
   register_module("layernorm", layernorm)
 
+  if (device != "cpu") {
+    val dev = new org.bytedeco.pytorch.Device(device)
+    layernorm.to(dev, false)
+  }
+
   // MLP for final prediction
   private val sparseDim = features.collect { case f: SparseFeature => 1 }.size * embedDim
   private val sequenceDim = sequenceFeatures.size * embedDim
@@ -79,7 +84,6 @@ class BST(
     val combined = torch.cat(new TensorVector(flatFeatures, normed), 1L)
     val logits = mlp.forward(combined)
 
-    logits.sigmoid()
     logits
   }
 }

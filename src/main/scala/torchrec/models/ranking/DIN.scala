@@ -72,7 +72,6 @@ class DIN(
     }
 
     val logits = mlp.forward(combined)
-    logits.sigmoid()
     logits
   }
 }
@@ -96,6 +95,13 @@ class AttentionNet(
   register_module("keyProj", keyProj)
   register_module("valueProj", valueProj)
   register_module("attentionNet", attentionNet)
+
+  if (device != "cpu") {
+    val dev = new org.bytedeco.pytorch.Device(device)
+    queryProj.to(dev, false)
+    keyProj.to(dev, false)
+    valueProj.to(dev, false)
+  }
 
   def forward(sequence: Tensor, target: Tensor): Tensor = {
     // sequence: (batch, seq_len, embed)

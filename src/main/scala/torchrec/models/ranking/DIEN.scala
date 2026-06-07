@@ -58,7 +58,6 @@ class DIEN(
     // Final MLP
     val logits = mlp.forward(combined)
 
-    logits.sigmoid()
     logits
   }
 }

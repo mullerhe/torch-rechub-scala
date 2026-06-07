@@ -36,7 +36,7 @@ class DeepFM(
 
   // Deep part
   private val sparseDim = features.collect { case f: SparseFeature => 1 }.size * embedDim
-  private val mlp = new MLP(sparseDim, mlpDims.map(_.toLong), 1, "relu", dropout, false, device = device)
+  private val mlp = new MLP(sparseDim.toLong, mlpDims.map(_.toLong), 1, "relu", dropout, false, device = device)
   register_module("mlp", mlp)
 
   // Move all submodules to device
@@ -44,6 +44,7 @@ class DeepFM(
     linear.to(new org.bytedeco.pytorch.Device(device), false)
     fm.to(new org.bytedeco.pytorch.Device(device), false)
     mlp.to(new org.bytedeco.pytorch.Device(device), false)
+    embeddingLayer.to(device)
   }
 
   def forward(
@@ -54,28 +55,31 @@ class DeepFM(
     val sparseNames = features.collect { case f: SparseFeature => f.name }
     val embList = sparseNames.flatMap { name =>
       sparseFeats.get(name).map { idx =>
-        // getEmbedding returns (batch, embedDim)
-        embeddingLayer.getEmbedding(name, idx.toType(ScalarType.Long)).to(new Device(device), ScalarType.Float)
+        embeddingLayer.getEmbedding(name, idx.toType(ScalarType.Long))
       }
     }
     if (embList.isEmpty) throw new IllegalArgumentException("No embeddings found for given features")
-    val embeddings = embList.stack(1) // (batch, num_fields, embed_dim)
 
-    // First-order: linear (zero placeholder for now — linear module unused due to sparse indices)
-    val batchSize = embeddings.size(0)
-    val linearOut = torch.zeros(Array(batchSize.toLong, 1L), new TensorOptions().dtype(new ScalarTypeOptional(ScalarType.Float))).to(embeddings.device(), ScalarType.Float)
+    // Ensure all embeddings are on the same device before stacking
+    val targetDev = embList.head.device()
+    val embListOnDev = embList.map(e => if (e.device().equals(targetDev)) e else e.to(targetDev, e.dtype()))
+    val embeddings3D = embListOnDev.stack(1) // (batch, num_fields, embed_dim)
+
+    // First-order: linear (zero placeholder)
+    val batchSize = embeddings3D.size(0)
+    val linearOut = torch.zeros(Array(batchSize.toLong, 1L),
+      new TensorOptions().dtype(new ScalarTypeOptional(ScalarType.Float)))
+      .to(embeddings3D.device(), ScalarType.Float)
 
     // Second-order: FM interactions
-    val fmOut = fm.forward(embeddings)
+    val fmOut = fm.forward(embeddings3D)
 
-    // Deep part: flatten embeddings to (batch, actualSparseDim) before MLP
-    val actualSparseDim = (embeddings.size(1) * embeddings.size(2)).toLong
-    val mlpIn = embeddings.view(batchSize, actualSparseDim)
+    // Deep part: flatten to (batch, sparseDim) before MLP
+    val mlpIn = embeddings3D.view(batchSize, sparseDim.toLong)
     val mlpOut = mlp.forward(mlpIn)
 
-    // Combine and sigmoid
+    // Combine (raw logits — BCEWithLogitsLoss handles sigmoid internally)
     val logits = linearOut.add(fmOut).add(mlpOut)
-    logits.sigmoid()
     logits
   }
 }

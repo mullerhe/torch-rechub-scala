@@ -32,11 +32,21 @@ class DCN(
   private val mlp = new MLP(sparseDim, mlpDims.map(_.toLong), 1, "relu", dropout, device = device)
   register_module("mlp", mlp)
 
+  // Final combination layer
+  private val combo = new LinearImpl(sparseDim + 1, 1)
+  register_module("combo", combo)
+
+  if (device != "cpu") {
+    val dev = new org.bytedeco.pytorch.Device(device)
+    combo.to(dev, false)
+  }
+
   def forward(
     sparseFeats: Map[String, Tensor],
     denseFeats: Map[String, Tensor] = Map.empty
   ): Tensor = {
     val embeddings = embeddingLayer.forward(sparseFeats)
+    val dev = embeddings.device()
 
     // Cross network
     val crossOut = crossNet.forward(embeddings)
@@ -44,9 +54,9 @@ class DCN(
     // Deep network
     val deepOut = mlp.forward(embeddings)
 
-    // Combine
-    val logits = crossOut.add(deepOut)
-    logits.sigmoid()
+    // Combine via concat + final linear (standard DCN architecture)
+    val combined = torch.cat(new TensorVector(crossOut, deepOut), 1)
+    val logits = combo.forward(combined)
     logits
   }
 }

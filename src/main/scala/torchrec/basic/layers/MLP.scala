@@ -60,9 +60,9 @@ class MLP(
   if (device != "cpu") {
     val dev = new org.bytedeco.pytorch.Device(device)
     layers.foreach { m =>
-      try { m.to(dev, false) } catch { case _: Throwable => }
+      m.to(dev, false)
     }
-    try { this.to(dev, false) } catch { case _: Throwable => }
+    this.to(dev, false)
   }
 
   def forward(x: Tensor): Tensor = {

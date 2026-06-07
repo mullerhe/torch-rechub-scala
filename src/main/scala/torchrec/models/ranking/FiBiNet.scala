@@ -61,7 +61,6 @@ class FiBiNet(
     biOut.foreach(t => tensorVec.push_back(t))
     val combined = torch.cat(tensorVec, 1L)
     val logits = mlp.forward(combined)
-    logits.sigmoid()
     logits
   }
 }
@@ -87,6 +86,16 @@ class BilinearInteraction(
         register_module(s"bilinear_weight_$i", lin)
       }
       w
+  }
+
+  if (device != "cpu") {
+    val dev = new org.bytedeco.pytorch.Device(device)
+    bilinearType match {
+      case "field_all" =>
+        weight.asInstanceOf[LinearImpl].to(dev, false)
+      case _ =>
+        weight.asInstanceOf[Array[LinearImpl]].foreach(_.to(dev, false))
+    }
   }
 
   def forward(f1: Tensor, f2: Tensor): Seq[Tensor] = {

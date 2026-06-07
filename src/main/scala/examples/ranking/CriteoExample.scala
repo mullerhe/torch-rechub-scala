@@ -2,10 +2,10 @@ package examples.ranking
 
 import torchrec.Implicits._
 import torchrec.data._
-import torchrec.data.DataGenerator
 import torchrec.basic.features._
 import torchrec.models.ranking._
 import torchrec.trainers._
+import torchrec.utils.DeviceSupport
 
 import org.bytedeco.pytorch._
 import org.bytedeco.pytorch.global.torch
@@ -18,14 +18,18 @@ import org.bytedeco.pytorch.global.torch
 object CriteoExample {
 
   def main(args: Array[String]): Unit = {
+    DeviceSupport.setDevice(DeviceSupport.DeviceType.AUTO)
+    val device = DeviceSupport.backend
+    println(s"[DeviceSupport] Active device: $device")
+
     println("=" * 70)
     println("Criteo CTR Prediction Example - Ranking Models")
     println("=" * 70)
 
     // Configuration
     val numSamples = 10000
-    val numSparseFeatures = 13  // C1-C13
-    val numDenseFeatures = 13  // I1-I13
+    val numSparseFeatures = 13
+    val numDenseFeatures = 13
     val vocabSize = 1000
     val embedDim = 16
     val mlpDims = List(256L, 128L)
@@ -33,14 +37,13 @@ object CriteoExample {
     val learningRate = 1e-3f
     val weightDecay = 1e-4f
     val numEpochs = 3
-    val device = "cuda"
     val seed = 2022
 
-    // Parse model name from args (default: deepfm)
     val modelName = if (args.length > 0) args(0).toLowerCase else "deepfm"
 
     println(s"\nConfiguration:")
     println(s"  Model: $modelName")
+    println(s"  Device: $device")
     println(s"  Samples: $numSamples")
     println(s"  Sparse Features: $numSparseFeatures")
     println(s"  Dense Features: $numDenseFeatures")
@@ -51,9 +54,9 @@ object CriteoExample {
     println(s"  Weight Decay: $weightDecay")
     println(s"  Epochs: $numEpochs")
 
-    // 1. Generate synthetic Criteo-like data
+    // Generate synthetic Criteo-like data
     println("\n[1] Generating synthetic Criteo-like data...")
-    val (trainData, valData, testData) = DataGenerator.generateRankingData(
+    val (trainData, valData, testData) = benchmarks.DataGenerator.generateRankingData(
       numSamples = numSamples,
       numSparseFeatures = numSparseFeatures,
       numDenseFeatures = numDenseFeatures,
@@ -66,31 +69,27 @@ object CriteoExample {
     println(s"  Val: ${valData.size} samples")
     println(s"  Test: ${testData.size} samples")
 
-    // 2. Create data loaders
+    // Create data loaders
     println("\n[2] Creating data loaders...")
-    val trainLoader = new DataLoader(trainData, batchSize, shuffle = true)
-    val valLoader = new DataLoader(valData, batchSize, shuffle = false)
-    val testLoader = new DataLoader(testData, batchSize, shuffle = false)
+    val trainLoader = new DataLoader(trainData, batchSize, shuffle = true, device = device)
+    val valLoader = new DataLoader(valData, batchSize, shuffle = false, device = device)
+    val testLoader = new DataLoader(testData, batchSize, shuffle = false, device = device)
     println(s"  Train batches: ${trainData.size / batchSize}")
     println(s"  Val batches: ${valData.size / batchSize}")
     println(s"  Test batches: ${testData.size / batchSize}")
 
-    // 3. Define features (mimicking Criteo schema)
+    // Define features
     println("\n[3] Defining features...")
     val denseFeatureNames = (0 until numDenseFeatures).map(i => s"dense_$i").toList
-    val sparseFeatureNames = (0 until numSparseFeatures).map(i => s"feat_$i").toList
+    val sparseFeatureNames = (0 until numSparseFeatures).map(i => s"sparse_$i").toList
 
     val denseFeatures = denseFeatureNames.map(name => DenseFeature(name = name))
     val sparseFeatures = sparseFeatureNames.map { name =>
       SparseFeature(name = name, vocabSize = vocabSize, embedDim = embedDim)
     }
-
     val allFeatures = denseFeatures ++ sparseFeatures
 
     // FFM features for DeepFFM
-    val ffmLinearFeatures = sparseFeatureNames.map { name =>
-      SparseFeature(name = name, vocabSize = vocabSize, embedDim = 1)
-    }
     val fieldNum = sparseFeatureNames.size
     val ffmCrossFeatures = sparseFeatureNames.map { name =>
       SparseFeature(name = name, vocabSize = vocabSize * fieldNum, embedDim = 10)
@@ -100,7 +99,7 @@ object CriteoExample {
     println(s"  Sparse features: ${sparseFeatures.size}")
     println(s"  Total features: ${allFeatures.size}")
 
-    // 4. Create model based on modelName
+    // Create model
     println(s"\n[4] Creating model: $modelName...")
     val model: Module = modelName match {
       case "widedeep" | "wide-deep" =>
@@ -112,7 +111,7 @@ object CriteoExample {
           device = device
         )
 
-      case "deepfm" =>
+      case "deepfm" | "" =>
         new DeepFM(
           features = allFeatures,
           embedDim = embedDim,
@@ -206,13 +205,9 @@ object CriteoExample {
         )
     }
 
-    // Count parameters
-    println(s"  Model: $modelName")
-
-    // 5. Train model
+    // Train
     println("\n[5] Training model...")
     val startTime = System.currentTimeMillis()
-
     val trainer = new CTRTrainer(
       model = model,
       learningRate = learningRate,
@@ -222,13 +217,11 @@ object CriteoExample {
       earlyStopPatience = 3,
       verbose = true
     )
-
     trainer.fit(trainLoader, Some(valLoader))
-
     val trainingTime = (System.currentTimeMillis() - startTime) / 1000.0f
     println(f"\n  Training completed in $trainingTime%.2f seconds")
 
-    // 6. Evaluate on test set
+    // Evaluate
     println("\n[6] Evaluating on test set...")
     val testMetrics = trainer.evaluate(testLoader)
     println("  Test metrics:")
@@ -236,7 +229,7 @@ object CriteoExample {
       println(f"    $name: $value%.4f")
     }
 
-    // 7. Make predictions
+    // Predict
     println("\n[7] Making predictions...")
     val predictions = trainer.predict(testLoader)
     println(s"  Predicted ${predictions.length} samples")

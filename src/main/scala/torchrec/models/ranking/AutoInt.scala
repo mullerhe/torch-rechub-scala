@@ -55,7 +55,6 @@ class AutoInt(
     val flattened = output.flatten( 1l, 1l)
 //    val flattened = output.flatten(start_dim = 1l,end_dim = 1l)
     val logits = mlp.forward(flattened)
-    logits.sigmoid()
     logits
   }
 }
@@ -83,6 +82,14 @@ class MultiHeadSelfAttention(
   register_module("key", key)
   register_module("value", value)
   register_module("output", output)
+
+  if (device != "cpu") {
+    val dev = new org.bytedeco.pytorch.Device(device)
+    query.to(dev, false)
+    key.to(dev, false)
+    value.to(dev, false)
+    output.to(dev, false)
+  }
 
   def forward(x: Tensor): Tensor = {
     // x: (batch, num_fields, embed_dim)

@@ -26,7 +26,7 @@ class EmbeddingLayer(
   private val embeddingTables = mutable.Map[String, EmbeddingImpl]()
   private val sharedEmbeddingTables = mutable.Map[String, EmbeddingImpl]()
 
-  // Build embedding tables
+  // Build embedding tables and ensure they're on the target device
   features.foreach {
     case f: SparseFeature =>
       if (!f.sharedWith.exists(sharedEmbeddingTables.contains)) {
@@ -34,11 +34,11 @@ class EmbeddingLayer(
         f.paddingIdx.foreach { idx =>
           options.padding_idx().put(idx)
         }
-        val embedding = new EmbeddingImpl(options)
-        try {
-          embedding.to(new org.bytedeco.pytorch.Device(device), false)
-        } catch {
-          case _: Throwable =>
+        var embedding = new EmbeddingImpl(options)
+        if (device != "cpu") {
+          val dev = new org.bytedeco.pytorch.Device(device)
+          embedding = new EmbeddingImpl(options)
+          embedding.to(dev, false)
         }
         val registeredName = s"embed_${f.name}"
         register_module(registeredName, embedding)
@@ -54,11 +54,11 @@ class EmbeddingLayer(
         if (f.paddingIdx != 0) {
           options.padding_idx().put(f.paddingIdx)
         }
-        val embedding = new EmbeddingImpl(options)
-        try {
-          embedding.to(new org.bytedeco.pytorch.Device(device), false)
-        } catch {
-          case _: Throwable =>
+        var embedding = new EmbeddingImpl(options)
+        if (device != "cpu") {
+          val dev = new org.bytedeco.pytorch.Device(device)
+          embedding = new EmbeddingImpl(options)
+          embedding.to(dev, false)
         }
         val registeredName = s"embed_seq_${f.name}"
         register_module(registeredName, embedding)
@@ -82,14 +82,12 @@ class EmbeddingLayer(
     sparseFeats.foreach { case (name, indices) =>
       embeddingTables.get(name).foreach { embed =>
         val embedDev = embed.weight().device()
-        val indicesOnDev = if (indices.device().equals(embedDev)) {
+        val idxOnDev = if (indices.device().equals(embedDev)) {
           indices.toType(ScalarType.Long)
         } else {
           indices.toType(ScalarType.Long).to(embedDev, ScalarType.Long)
         }
-        val emb = embed.forward(indicesOnDev)
-        indicesOnDev.close()
-        embeddingList += emb.to(new org.bytedeco.pytorch.Device(device), ScalarType.Float)
+        embeddingList += embed.forward(idxOnDev)
       }
     }
 
@@ -97,22 +95,21 @@ class EmbeddingLayer(
     sequenceFeats.foreach { case (name, indices) =>
       embeddingTables.get(s"${name}_seq").foreach { embed =>
         val embedDev = embed.weight().device()
-        val indicesOnDev = if (indices.device().equals(embedDev)) {
+        val idxOnDev = if (indices.device().equals(embedDev)) {
           indices.toType(ScalarType.Long)
         } else {
           indices.toType(ScalarType.Long).to(embedDev, ScalarType.Long)
         }
-        val emb = embed.forward(indicesOnDev)
-        indicesOnDev.close()
+        val emb = embed.forward(idxOnDev)
 
         // Apply pooling
         val pooled = emb match {
           case _ if name.endsWith("_mean") || name.endsWith("_sum") || name.endsWith("_concat") =>
             emb
           case _ =>
-            poolSequence(emb, indicesOnDev, "mean")
+            poolSequence(emb, idxOnDev, "mean")
         }
-        embeddingList += pooled.to(new org.bytedeco.pytorch.Device(device), ScalarType.Float)
+        embeddingList += pooled
       }
     }
 
@@ -139,10 +136,11 @@ class EmbeddingLayer(
         i += 1
       }
     }
-    val concatenated = torchrec.TorchRec.tensor(resultArr, batchSize.toLong, numFields.toLong, embedDim.toLong).to(new org.bytedeco.pytorch.Device(device), ScalarType.Float)
+    val embedDev = embeddingList.head.device()
+    val concatenated = torchrec.TorchRec.tensor(resultArr, batchSize.toLong, numFields.toLong, embedDim.toLong).to(embedDev, ScalarType.Float)
     val flattened = concatenated.view(batchSize.toLong, (numFields * embedDim).toLong)
     if (squeeze && embeddingList.size == 1) {
-      concatenated.squeeze(1)
+      flattened.squeeze(1)
     } else {
       flattened
     }
@@ -180,21 +178,29 @@ class EmbeddingLayer(
   def getEmbedding(name: String, indices: Tensor): Tensor = {
     embeddingTables.get(name) match {
       case Some(embed) =>
-        val embedDevice = embed.weight().device()
-        val indicesOnDevice = if (indices.device().equals(embedDevice)) {
-          indices.toType(ScalarType.Long)
+        // Squeeze 2D (batch, 1) indices to 1D (batch,) for standard embedding lookup
+        val idx1d = if (indices.dim() == 2L && indices.size(1) == 1L) {
+          indices.squeeze(1)
+        } else if (indices.dim() == 1L) {
+          indices
         } else {
-          indices.toType(ScalarType.Long).to(embedDevice, ScalarType.Long)
+          indices
         }
-        val emb = embed.forward(indicesOnDevice)
-        indicesOnDevice.close()
-        emb
+        // Move indices to the SAME device as the embedding table (not just "device" field)
+        val embedDev = embed.weight().device()
+        val idxOnDev = if (idx1d.device().equals(embedDev)) {
+          idx1d.toType(ScalarType.Long)
+        } else {
+          idx1d.toType(ScalarType.Long).to(embedDev, ScalarType.Long)
+        }
+        embed.forward(idxOnDev)
       case None => throw new IllegalArgumentException(s"No embedding table for: $name")
     }
   }
 
   def to(device: String): this.type = {
-    // Device transfer not supported in JavaCPP - just return this
+    // Embeddings are already on the target device from the constructor.
+    // This method is kept for API compatibility but is a no-op.
     this
   }
 }

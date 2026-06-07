@@ -20,12 +20,6 @@ class WideDeep(
   device: String = "cpu"
 ) extends Module {
 
-  private val totalVocab = features.collect { case f: SparseFeature => f.vocabSize }.sum.toInt
-
-  // Wide (linear) part
-  private val wide = new LinearImpl(totalVocab, 1)
-  register_module("wide", wide)
-
   // Deep part
   private val embeddingLayer = new EmbeddingLayer(features, embedDim, device)
   register_module("embedding", embeddingLayer)
@@ -39,17 +33,34 @@ class WideDeep(
     denseFeats: Map[String, Tensor] = Map.empty
   ): Tensor = {
     val embeddings = embeddingLayer.forward(sparseFeats)
+    val dev = embeddings.device()
 
-    // Wide
-    val indices = torch.cat(sparseFeats.values.toSeq.map(_.toType(ScalarType.Long)).toTensorVector, 1)
-    val wideOut = wide.forward(indices.toType(ScalarType.Float))
+    // Wide: sum of embeddings per field (FM first-order style)
+    val sparseNames = features.collect { case f: SparseFeature => f.name }
+    val wideList = sparseNames.flatMap { name =>
+      sparseFeats.get(name).map { idx =>
+        val idxOnDev = if (idx.device().equals(dev)) {
+          idx.toType(ScalarType.Long)
+        } else {
+          idx.toType(ScalarType.Long).to(dev, ScalarType.Long)
+        }
+        val emb = embeddingLayer.getEmbedding(name, idxOnDev)
+        emb.sum(1).unsqueeze(1)
+      }
+    }
+    val wideOut = if (wideList.nonEmpty) {
+      wideList.reduceOption((a, b) => a.add(b)).getOrElse {
+        torch.zeros(Array(embeddings.size(0).toLong, 1L), new TensorOptions().dtype(new ScalarTypeOptional(ScalarType.Float))).to(dev, ScalarType.Float)
+      }
+    } else {
+      torch.zeros(Array(embeddings.size(0).toLong, 1L), new TensorOptions().dtype(new ScalarTypeOptional(ScalarType.Float))).to(dev, ScalarType.Float)
+    }
 
     // Deep
     val deepOut = mlp.forward(embeddings)
 
-    // Combine
+    // Combine (raw logits — BCEWithLogitsLoss handles sigmoid internally)
     val logits = wideOut.add(deepOut)
-    logits.sigmoid()
     logits
   }
 }

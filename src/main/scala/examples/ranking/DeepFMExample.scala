@@ -1,15 +1,14 @@
 package examples.ranking
 
 import torchrec.Implicits._
-import torchrec.TorchRec
-import torchrec.models.ranking._
+import torchrec.data._
 import torchrec.basic.features._
+import torchrec.models.ranking._
+import torchrec.trainers._
+import torchrec.utils.DeviceSupport
 
 import org.bytedeco.pytorch._
 import org.bytedeco.pytorch.global.torch
-import org.bytedeco.pytorch.global.torch.ScalarType
-
-import scala.collection.mutable
 
 /**
  * DeepFM Example for CTR Prediction
@@ -17,6 +16,10 @@ import scala.collection.mutable
 object DeepFMExample {
 
   def main(args: Array[String]): Unit = {
+    DeviceSupport.setDevice(DeviceSupport.DeviceType.AUTO)
+    val device = DeviceSupport.backend
+    println(s"[DeviceSupport] Active device: $device")
+
     println("=" * 60)
     println("DeepFM CTR Prediction Example")
     println("=" * 60)
@@ -25,18 +28,19 @@ object DeepFMExample {
     val batchSize = 256
     val embedDim = 8
     val numEpochs = 3
+    val vocabSize = 100
+    val numSparseFeatures = 10
 
     println(s"\nConfiguration:")
+    println(s"  Device: $device")
     println(s"  Batch Size: $batchSize")
     println(s"  Embed Dim: $embedDim")
     println(s"  Epochs: $numEpochs")
 
-    // Create features
-    val numSparseFeatures = 10
-    val vocabSize = 100
+    // Define features — names must match DataGenerator output (sparse_0, sparse_1, ...)
     println("\n[1] Defining features...")
     val features = (0 until numSparseFeatures).map { i =>
-      SparseFeature(name = s"feat_$i", vocabSize = vocabSize, embedDim = embedDim)
+      SparseFeature(name = s"sparse_$i", vocabSize = vocabSize, embedDim = embedDim)
     }.toList
     features.foreach { f =>
       println(s"  - ${f.name}: vocab=${f.vocabSize}, embed=${f.embedDim}")
@@ -49,66 +53,57 @@ object DeepFMExample {
       embedDim = embedDim,
       mlpDims = List(128L, 64L),
       dropout = 0.2f,
-      device = "cuda"
+      device = device
     )
     println(s"  Model created: DeepFM(embedDim=$embedDim)")
 
-    // Generate simple training data
+    // Generate synthetic data using DataGenerator
     println("\n[3] Generating synthetic data...")
-    val random = new scala.util.Random(42)
-    val batchFeatures = mutable.Map[String, Tensor]()
-    for (feat <- features) {
-      val data = Array.tabulate(batchSize) { _ =>
-        random.nextInt(vocabSize).toFloat
-      }
-      // Ensure tensors have shape (batch,1) and are on cpu
-      batchFeatures(feat.name) = TorchRec.tensor(data, batchSize.toLong, 1L).to("cpu").toType(ScalarType.Long)
-    }
-    val labels = Array.tabulate(batchSize) { _ =>
-      if (random.nextFloat() > 0.5f) 1.0f else 0.0f
-    }
-    // Create labels tensor with shape (batch,1) on cpu
-    val labelsTensor = TorchRec.tensor(labels, batchSize.toLong, 1L).to("cpu").toType(ScalarType.Float)
-    println(s"  Generated $batchSize samples")
+    val (trainData, valData, testData) = benchmarks.DataGenerator.generateRankingData(
+      numSamples = 1000,
+      numSparseFeatures = numSparseFeatures,
+      numDenseFeatures = 0,
+      vocabSize = vocabSize,
+      seed = 42
+    )
+    println(s"  Generated ${trainData.size} training samples")
+    println(s"  Generated ${valData.size} validation samples")
 
-    // Training loop
-    println("\n[4] Training model...")
+    // Create data loaders — pass device so tensors land on the right place
+    println("\n[4] Creating data loaders...")
+    val trainLoader = new DataLoader(trainData, batchSize, shuffle = true, device = device)
+    val valLoader = new DataLoader(valData, batchSize, shuffle = false, device = device)
+    val testLoader = new DataLoader(testData, batchSize, shuffle = false, device = device)
+    println(s"  Train batches: ${trainData.size / batchSize}")
+
+    // Train using CTRTrainer
+    println("\n[5] Training model...")
     val startTime = System.currentTimeMillis()
-
-    for (epoch <- 0 until numEpochs) {
-      try {
-        val pred = model.forward(batchFeatures.toMap)
-        val predSqueezed = pred.squeeze()
-        val labelsOnDevice = labelsTensor.to(pred.device(), ScalarType.Float)
-        val diff = predSqueezed.sub(labelsOnDevice)
-        val loss = TorchRec.mul(diff, diff).mean()
-        println(s"  Epoch $epoch: loss=${f"${loss.item().toFloat}%.4f"}")
-      }
-//      catch {
-//        case e: Throwable =>
-//          println(s"  Epoch $epoch: error=${e.getMessage}")
-//      }
-    }
-
+    val trainer = new CTRTrainer(
+      model = model,
+      learningRate = 1e-3f,
+      device = device,
+      numEpochs = numEpochs,
+      verbose = true
+    )
+    trainer.fit(trainLoader, Some(valLoader))
     val trainingTime = (System.currentTimeMillis() - startTime) / 1000.0f
     println(f"\n  Training completed in $trainingTime%.2f seconds")
 
     // Evaluate
-    println("\n[5] Evaluating...")
-    try {
-      val pred = model.forward(batchFeatures.toMap)
-      println("\n[5] Evaluating...1")
-      val predArr = pred.squeeze().toFloatArray
-      println("\n[5] Evaluating...2")
-      val labelArr = labelsTensor.toFloatArray
-      println("\n[5] Evaluating..3.")
-      val auc = torchrec.basic.metrics.AUC.calculate(predArr, labelArr)
-      val logloss = torchrec.basic.metrics.LogLoss.calculate(predArr, labelArr)
-      println(f"  AUC: $auc%.4f")
-      println(f"  LogLoss: $logloss%.4f")
-    } catch {
-      case e: Throwable =>
-        println(s"  Evaluation error: ${e.getMessage}")
+    println("\n[6] Evaluating...")
+    val testMetrics = trainer.evaluate(testLoader)
+    println("  Test metrics:")
+    testMetrics.foreach { case (name, value) =>
+      println(f"    $name: $value%.4f")
+    }
+
+    // Predict
+    println("\n[7] Making predictions...")
+    val predictions = trainer.predict(testLoader)
+    println(s"  Predicted ${predictions.length} samples")
+    if (predictions.nonEmpty) {
+      println(s"  Sample predictions: ${predictions.take(5).map(v => f"$v%.3f").mkString(", ")}")
     }
 
     println("\n" + "=" * 60)

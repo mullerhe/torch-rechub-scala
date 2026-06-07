@@ -67,7 +67,7 @@ class AFM(
     val fmOut = fmInteraction.forward(embeddings)
     val attendedInteractions = fmOut * attentionWeights
 
-    attendedInteractions.sigmoid()
+    attendedInteractions
   }
 
   private def computeAttentionWeights(embeddings: Tensor): Tensor = {

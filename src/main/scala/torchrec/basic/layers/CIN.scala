@@ -36,9 +36,7 @@ class CIN(
         val outSize = layerSizes(layerIdx)
         val fc = new LinearImpl(inDim, numFields * outSize)
         register_module(s"fc_$layerIdx", fc)
-        try {
-          fc.to(new org.bytedeco.pytorch.Device(device), false)
-        } catch { case _: Throwable => }
+        fc.to(new org.bytedeco.pytorch.Device(device), false)
         fc
       }
       lastNumFields = numFields.toInt

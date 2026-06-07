@@ -59,7 +59,6 @@ class DeepFFM(
 
     // Combine FFM and deep outputs
     val logits = ffmOut.add(mlpOut)
-    logits.sigmoid()
     logits
   }
 }

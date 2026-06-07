@@ -218,7 +218,7 @@ object RealDataBenchmark {
       val userFeat = SparseFeature("user_id", numUsers.toInt.max(1), 16)
       val itemFeat = SparseFeature("item_id", numItems.toInt.max(1), 16)
 
-      val model = new DSSM(List(userFeat), List(itemFeat), 16, List(64L, 32L), 0.2f, "cpu")
+      val model = new DSSM(List(userFeat), List(itemFeat), 16, List(64L, 32L), 0.2f, device)
 
       val trainer = new MatchTrainer(model, learningRate = 0.001f,device = device, numEpochs = 3, verbose = true)
 

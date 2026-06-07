@@ -356,22 +356,23 @@ class MatchingDataset(
   }
 
   override def get(index: Long): Batch = {
-    // Use safe selection to avoid out-of-range when item and user counts differ.
-    def safeSelect(v: Tensor, idx: Long): Tensor = {
+    // Use narrow to get 1D/2D slices that preserve dimension, matching TensorDataset behavior
+    def safeNarrow(v: Tensor, idx: Long): Tensor = {
       val safeIdx = math.min(idx, v.size(0) - 1)
-      v.select(0, safeIdx)
+      val sliced = v.narrow(0, safeIdx, 1)
+      if (sliced.dim() == 0) sliced.unsqueeze(0) else sliced
     }
 
     Batch(
-      userFeatures.map { case (k, v) => k -> safeSelect(v, index) },
+      userFeatures.map { case (k, v) => k -> safeNarrow(v, index) },
       Map.empty,
       Map.empty,
-      labels.map(l => safeSelect(l, index)),
+      labels.map(l => safeNarrow(l, index)),
       None,
       None,
       None,
       None,
-      itemFeatures.map { case (k, v) => k -> safeSelect(v, index) }
+      itemFeatures.map { case (k, v) => k -> safeNarrow(v, index) }
     )
   }
 

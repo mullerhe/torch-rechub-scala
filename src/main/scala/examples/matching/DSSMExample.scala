@@ -2,10 +2,10 @@ package examples.matching
 
 import torchrec.Implicits._
 import torchrec.data._
-import torchrec.data.DataGenerator
 import torchrec.models.matching._
 import torchrec.trainers._
 import torchrec.basic.features.SparseFeature
+import torchrec.utils.DeviceSupport
 
 import org.bytedeco.pytorch._
 import org.bytedeco.pytorch.global.torch
@@ -16,6 +16,10 @@ import org.bytedeco.pytorch.global.torch
 object DSSMExample {
 
   def main(args: Array[String]): Unit = {
+    DeviceSupport.setDevice(DeviceSupport.DeviceType.AUTO)
+    val device = DeviceSupport.backend
+    println(s"[DeviceSupport] Active device: $device")
+
     println("=" * 60)
     println("DSSM Two-Tower Matching Example")
     println("=" * 60)
@@ -31,17 +35,17 @@ object DSSMExample {
     val batchSize = 128
     val learningRate = 1e-3f
     val numEpochs = 5
-    val device = "cuda"
 
     println(s"\nConfiguration:")
+    println(s"  Device: $device")
     println(s"  Users: $numUsers")
     println(s"  Items: $numItems")
     println(s"  Embed Dim: $embedDim")
     println(s"  Tower Dims: $towerDims")
 
-    // 1. Generate matching data
+    // Generate matching data
     println("\n[1] Generating synthetic matching data...")
-    val (trainData, _, testData) = DataGenerator.generateMatchingData(
+    val (trainData, _, testData) = benchmarks.DataGenerator.generateMatchingData(
       numUsers = numUsers,
       numItems = numItems,
       avgSequenceLength = 10,
@@ -53,18 +57,18 @@ object DSSMExample {
     println(s"  Train users: ${trainData.size}")
     println(s"  Items: $numItems")
 
-    // 2. Create data loaders
+    // Create data loaders
     println("\n[2] Creating data loaders...")
-    val trainLoader = new DataLoader(trainData, batchSize, shuffle = true)
-    val testLoader = new DataLoader(testData, batchSize, shuffle = false)
+    val trainLoader = new DataLoader(trainData, batchSize, shuffle = true, device = device)
+    val testLoader = new DataLoader(testData, batchSize, shuffle = false, device = device)
 
-    // 3. Define features
+    // Define features
     println("\n[3] Defining features...")
     val userFeatures = (0 until numUserFeatures).map { i =>
-      SparseFeature(s"user_feat_$i", vocabSize, embedDim)
+      SparseFeature(s"user_$i", vocabSize, embedDim)
     }.toList
     val itemFeatures = (0 until numItemFeatures).map { i =>
-      SparseFeature(s"item_feat_$i", numItems, embedDim)
+      SparseFeature(s"item_$i", numItems, embedDim)
     }.toList
 
     println("  User features:")
@@ -72,7 +76,7 @@ object DSSMExample {
     println("  Item features:")
     itemFeatures.foreach { f => println(s"    - ${f.name}: vocab=${f.vocabSize}") }
 
-    // 4. Create model
+    // Create model
     println("\n[4] Creating DSSM model...")
     val model = new DSSM(
       userFeatures = userFeatures,
@@ -84,25 +88,21 @@ object DSSMExample {
     )
     println(s"  Model created: DSSM(user_tower=$towerDims, item_tower=$towerDims)")
 
-    // 5. Train model
+    // Train
     println("\n[5] Training model...")
     val startTime = System.currentTimeMillis()
-
     val trainer = new MatchTrainer(
       model = model,
       learningRate = learningRate,
       device = device,
-      mode = 2,  // listwise
       numEpochs = numEpochs,
       verbose = true
     )
-
     trainer.fit(trainLoader)
-
     val trainingTime = (System.currentTimeMillis() - startTime) / 1000.0f
     println(f"\n  Training completed in $trainingTime%.2f seconds")
 
-    // 6. Extract embeddings
+    // Extract embeddings
     println("\n[6] Extracting user and item embeddings...")
     val userEmbeds = trainer.inferenceEmbedding(testLoader, "user")
     val itemEmbeds = trainer.inferenceEmbedding(testLoader, "item")
@@ -113,10 +113,14 @@ object DSSMExample {
       println(s"  Item embeddings shape: ${itemEmbeds.head.shape.mkString(", ")}")
     }
 
-    // 7. Evaluate
+    // Evaluate
     println("\n[7] Evaluating...")
     val recall = trainer.evaluate(testLoader, topk = 10)
     println(f"  Recall@10: $recall%.4f")
+
+    val fullMetrics = trainer.evaluateFull(testLoader, topk = 10)
+    println("  Full metrics:")
+    fullMetrics.foreach { case (name, value) => println(f"    $name: $value%.4f") }
 
     println("\n" + "=" * 60)
     println("DSSM Example Completed Successfully!")

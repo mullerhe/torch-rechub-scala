@@ -6,6 +6,7 @@ import torchrec.data._
 import benchmarks.DataGenerator
 import torchrec.models.ranking._
 import torchrec.trainers._
+import torchrec.utils.DeviceSupport
 
 import org.bytedeco.pytorch._
 import org.bytedeco.pytorch.global.torch
@@ -23,6 +24,9 @@ import org.bytedeco.pytorch.global.torch
 object QuickStartCTR {
 
   def main(args: Array[String]): Unit = {
+    DeviceSupport.setDevice(DeviceSupport.DeviceType.AUTO)
+    val device = DeviceSupport.backend
+    println(s"[DeviceSupport] Active device: $device")
     println("""
       |=============================================================
       | Quick Start: Click-Through Rate Prediction with DeepFM
@@ -39,7 +43,7 @@ object QuickStartCTR {
       numSamples = 5000,
       numSparseFeatures = 3,
       numDenseFeatures = 0,
-      vocabSize = 150,
+      vocabSize = 100,
       seed = 2024,
       featureNames = Seq("user_id", "item_id", "category")
     )
@@ -51,7 +55,7 @@ object QuickStartCTR {
     val features = List(
       SparseFeature("user_id", 100, 8),
       SparseFeature("item_id", 100, 8),
-      SparseFeature("category", 20, 4)
+      SparseFeature("category", 100, 4)
     )
     features.foreach(f => println(f"  - ${f.name}: vocab=${f.vocabSize}, embed=${f.embedDim}"))
 
@@ -61,14 +65,15 @@ object QuickStartCTR {
       features = features,
       embedDim = 8,
       mlpDims = List(64L, 32L),
-      dropout = 0.2f
+      dropout = 0.2f,
+      device = device
     )
     println("  Model: DeepFM(embed_dim=8, mlp_dims=[64, 32])")
 
     // Step 4: Create data loaders
     println("\nStep 4: Creating data loaders...")
-    val trainLoader = new DataLoader(trainData, batchSize = 128, shuffle = true)
-    val valLoader = new DataLoader(valData, batchSize = 128, shuffle = false)
+    val trainLoader = new DataLoader(trainData, batchSize = 128, shuffle = true, device = device)
+    val valLoader = new DataLoader(valData, batchSize = 128, shuffle = false, device = device)
     println(f"  Train batches: ${trainData.size / 128}")
     println(f"  Val batches: ${valData.size / 128}")
 
@@ -77,6 +82,7 @@ object QuickStartCTR {
     val trainer = new CTRTrainer(
       model = model,
       learningRate = 1e-3f,
+      device = device,
       numEpochs = 3,
       verbose = true
     )

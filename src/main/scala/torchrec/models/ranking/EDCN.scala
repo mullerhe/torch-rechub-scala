@@ -39,6 +39,19 @@ class EDCN(
   private val bridge = new Bridge(sparseDim, mlpDims.last.toInt, bridgeType, device)
   register_module("bridge", bridge)
 
+  // Final combo layer (output dim depends on bridge type)
+  private val bridgeOutDim = bridgeType match {
+    case "concat" => mlpDims.last + 1
+    case _ => mlpDims.last
+  }
+  private val combo = new LinearImpl(sparseDim + bridgeOutDim, 1)
+  register_module("combo", combo)
+
+  if (device != "cpu") {
+    val dev = new org.bytedeco.pytorch.Device(device)
+    combo.to(dev, false)
+  }
+
   def forward(
     sparseFeats: Map[String, Tensor],
     denseFeats: Map[String, Tensor] = Map.empty
@@ -56,9 +69,9 @@ class EDCN(
     // Bridge
     val bridged = bridge.forward(crossOut, mlpOut)
 
-    // Final combination
-    val logits = crossOut.add(bridged)
-    logits.sigmoid()
+    // Final combination via concat + linear
+    val combined = torch.cat(new TensorVector(crossOut, bridged), 1)
+    val logits = combo.forward(combined)
     logits
   }
 }
@@ -75,6 +88,11 @@ class Bridge(
 
   private val projection = new LinearImpl(inputDim, hiddenDim)
   register_module("projection", projection)
+
+  if (device != "cpu") {
+    val dev = new org.bytedeco.pytorch.Device(device)
+    projection.to(dev, false)
+  }
 
   def forward(crossOut: Tensor, deepOut: Tensor): Tensor = {
     bridgeType match {

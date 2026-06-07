@@ -17,8 +17,7 @@ import torchrec.models.ranking.AFM
 import torchrec.models.ranking.WideDeep
 import torchrec.models.ranking.DIN
 import torchrec.models.ranking.BST
-import torchrec.basic.losses.BCELoss
-import torchrec.distributed.ModuleForward
+import torchrec.basic.losses.{BCELoss, BCEWithLogitsLoss}
 
 /**
  * Trainer for CTR (Click-Through Rate) models
@@ -36,8 +35,7 @@ class CTRTrainer(
   private var patienceCounter = 0
   private val rng = new Random(42)
   private val optimizer = new Adam(model.parameters(), new AdamOptions(learningRate.toDouble))
-  private val bceLoss = new BCELoss()
-  private val forward: ModuleForward = ModuleForward.of(model)
+  private val bceLoss = new BCEWithLogitsLoss()
 
   def fit(
     trainLoader: DataLoader,
@@ -67,20 +65,67 @@ class CTRTrainer(
             case deepFM: DeepFM =>
               val pred = deepFM.forward(features)
               val batchSize = pred.size(0).toInt
-
-              // Ensure shapes match: pred=(batch,1), labels=(batch,) — view both to (batch,1)
-              val pred2D = pred.view(batchSize, 1)
               val target2D = labels.view(batchSize, 1).toType(ScalarType.Float)
+              val loss = bceLoss.apply(pred, target2D)
+              loss.backward(); optimizer.step()
+              totalLoss += loss.item().toFloat; numBatches += 1
 
-              // DeepFM.forward already applies sigmoid, use BCELoss
-              val loss = bceLoss.apply(pred2D, target2D)
+            case dcn: DCN =>
+              val pred = dcn.forward(features)
+              val batchSize = pred.size(0).toInt
+              val target2D = labels.view(batchSize, 1).toType(ScalarType.Float)
+              val loss = bceLoss.apply(pred, target2D)
+              loss.backward(); optimizer.step()
+              totalLoss += loss.item().toFloat; numBatches += 1
 
-              // Backward pass and optimizer step
-              loss.backward()
-              optimizer.step()
+            case dcnv2: DCNv2 =>
+              val pred = dcnv2.forward(features)
+              val batchSize = pred.size(0).toInt
+              val target2D = labels.view(batchSize, 1).toType(ScalarType.Float)
+              val loss = bceLoss.apply(pred, target2D)
+              loss.backward(); optimizer.step()
+              totalLoss += loss.item().toFloat; numBatches += 1
 
-              totalLoss += loss.item().toFloat
-              numBatches += 1
+            case afm: AFM =>
+              val pred = afm.forward(features)
+              val batchSize = pred.size(0).toInt
+              val target2D = labels.view(batchSize, 1).toType(ScalarType.Float)
+              val loss = bceLoss.apply(pred, target2D)
+              loss.backward(); optimizer.step()
+              totalLoss += loss.item().toFloat; numBatches += 1
+
+            case wd: WideDeep =>
+              val pred = wd.forward(features)
+              val batchSize = pred.size(0).toInt
+              val target2D = labels.view(batchSize, 1).toType(ScalarType.Float)
+              val loss = bceLoss.apply(pred, target2D)
+              loss.backward(); optimizer.step()
+              totalLoss += loss.item().toFloat; numBatches += 1
+
+            case din: DIN =>
+              val seqFeats = batch.sequenceFeatures
+              if (seqFeats.nonEmpty) {
+                val targetIdx = labels.view(labels.size(0), 1).toType(ScalarType.Long)
+                val pred = din.forward(features, seqFeats, targetIdx)
+                val batchSize = pred.size(0).toInt
+                val target2D = labels.view(batchSize, 1).toType(ScalarType.Float)
+                val loss = bceLoss.apply(pred, target2D)
+                loss.backward(); optimizer.step()
+                totalLoss += loss.item().toFloat; numBatches += 1
+                targetIdx.close()
+              }
+
+            case bst: BST =>
+              val seqFeats = batch.sequenceFeatures
+              if (seqFeats.nonEmpty) {
+                val pred = bst.forward(features, seqFeats)
+                val batchSize = pred.size(0).toInt
+                val target2D = labels.view(batchSize, 1).toType(ScalarType.Float)
+                val loss = bceLoss.apply(pred, target2D)
+                loss.backward(); optimizer.step()
+                totalLoss += loss.item().toFloat; numBatches += 1
+              }
+
             case _ =>
             // Skip unknown model types
           }
@@ -133,7 +178,7 @@ class CTRTrainer(
         val label = labelsOpt.get
         model match {
           case deepFM: DeepFM =>
-            val pred = deepFM.forward(features)
+            val pred = deepFM.forward(features).sigmoid()
             val predHost = pred.squeeze().to(ScalarType.Float).contiguous().cpu()
             val labelHost = label.squeeze().to(ScalarType.Float).contiguous().cpu()
             predList.appendAll(predHost.toFloatArray)
@@ -141,7 +186,7 @@ class CTRTrainer(
             predHost.close(); labelHost.close()
 
           case dcn: DCN =>
-            val pred = dcn.forward(features)
+            val pred = dcn.forward(features).sigmoid()
             val predHost = pred.squeeze().to(ScalarType.Float).contiguous().cpu()
             val labelHost = label.squeeze().to(ScalarType.Float).contiguous().cpu()
             predList.appendAll(predHost.toFloatArray)
@@ -149,7 +194,7 @@ class CTRTrainer(
             predHost.close(); labelHost.close()
 
           case dcnv2: DCNv2 =>
-            val pred = dcnv2.forward(features)
+            val pred = dcnv2.forward(features).sigmoid()
             val predHost = pred.squeeze().to(ScalarType.Float).contiguous().cpu()
             val labelHost = label.squeeze().to(ScalarType.Float).contiguous().cpu()
             predList.appendAll(predHost.toFloatArray)
@@ -157,7 +202,7 @@ class CTRTrainer(
             predHost.close(); labelHost.close()
 
           case afm: AFM =>
-            val pred = afm.forward(features)
+            val pred = afm.forward(features).sigmoid()
             val predHost = pred.squeeze().to(ScalarType.Float).contiguous().cpu()
             val labelHost = label.squeeze().to(ScalarType.Float).contiguous().cpu()
             predList.appendAll(predHost.toFloatArray)
@@ -165,7 +210,7 @@ class CTRTrainer(
             predHost.close(); labelHost.close()
 
           case wd: WideDeep =>
-            val pred = wd.forward(features)
+            val pred = wd.forward(features).sigmoid()
             val predHost = pred.squeeze().to(ScalarType.Float).contiguous().cpu()
             val labelHost = label.squeeze().to(ScalarType.Float).contiguous().cpu()
             predList.appendAll(predHost.toFloatArray)
@@ -175,7 +220,7 @@ class CTRTrainer(
           case din: DIN =>
             if (seqFeats.nonEmpty) {
               val targetIdx = label.view(label.size(0), 1).toType(ScalarType.Long)
-              val pred = din.forward(features, seqFeats, targetIdx)
+              val pred = din.forward(features, seqFeats, targetIdx).sigmoid()
               val predHost = pred.squeeze().to(ScalarType.Float).contiguous().cpu()
               val labelHost = label.squeeze().to(ScalarType.Float).contiguous().cpu()
               predList.appendAll(predHost.toFloatArray)
@@ -186,7 +231,7 @@ class CTRTrainer(
 
           case bst: BST =>
             if (seqFeats.nonEmpty) {
-              val pred = bst.forward(features, seqFeats)
+              val pred = bst.forward(features, seqFeats).sigmoid()
               val predHost = pred.squeeze().to(ScalarType.Float).contiguous().cpu()
               val labelHost = label.squeeze().to(ScalarType.Float).contiguous().cpu()
               predList.appendAll(predHost.toFloatArray)
@@ -194,16 +239,8 @@ class CTRTrainer(
               predHost.close(); labelHost.close()
             }
 
-          case module: Module =>
-            // Generic fallback for unknown CTR models
-            try {
-              val pred = forward.apply(module,features).asInstanceOf[Tensor]
-              val predHost = pred.squeeze().to(ScalarType.Float).contiguous().cpu()
-              val labelHost = label.squeeze().to(ScalarType.Float).contiguous().cpu()
-              predList.appendAll(predHost.toFloatArray)
-              labelList.appendAll(labelHost.toFloatArray)
-              predHost.close(); labelHost.close()
-            } catch { case _: Throwable => }
+          case _ =>
+            // Unknown model type — skip evaluation
         }
       }
     }
@@ -250,7 +287,7 @@ class CTRTrainer(
 
       model match {
         case deepFM: DeepFM =>
-          val pred = deepFM.forward(features)
+          val pred = deepFM.forward(features).sigmoid()
           val predHost = pred.squeeze().to(ScalarType.Float).contiguous().cpu()
           predictions.appendAll(predHost.toFloatArray)
           predHost.close()

@@ -60,14 +60,14 @@ class DSSM(
   }
 
   def userTowerForward(userFeats: Map[String, Tensor]): Tensor = {
-    val sparseOnly = userFeats.filter(_._2.dim() == 1L)
-    val userEmb = userEmbedding.forward(sparseOnly)
-    userTower.forward(userEmb)
+    val userEmb = userEmbedding.forward(userFeats, Map.empty, squeeze = false)
+    val squeezed = if (userEmb.dim() == 2L && userEmb.size(1) == 1L) userEmb.squeeze(1) else userEmb
+    userTower.forward(squeezed)
   }
 
   def itemTowerForward(itemFeats: Map[String, Tensor]): Tensor = {
-    val sparseOnly = itemFeats.filter(_._2.dim() == 1L)
-    val itemEmb = itemEmbedding.forward(sparseOnly)
-    itemTower.forward(itemEmb)
+    val itemEmb = itemEmbedding.forward(itemFeats, Map.empty, squeeze = false)
+    val squeezed = if (itemEmb.dim() == 2L && itemEmb.size(1) == 1L) itemEmb.squeeze(1) else itemEmb
+    itemTower.forward(squeezed)
   }
 }

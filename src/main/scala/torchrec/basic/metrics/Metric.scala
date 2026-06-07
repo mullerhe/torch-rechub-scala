@@ -21,35 +21,34 @@ trait Metric {
  * Area Under the ROC Curve
  */
 class AUC(posLabel: Int = 1) extends Metric {
+  private var pairs = 0.0
   private var posCount = 0
   private var negCount = 0
-  private var posPredsSum = 0.0
-  private var pairs = 0.0
 
   def name: String = "AUC"
 
   def update(predictions: Array[Float], labels: Array[Float]): Unit = {
-    require(predictions.length == labels.length)
-
     val n = predictions.length
     val sortedIndices = predictions.indices.sortBy(i => -predictions(i))
 
-    var i = 0
-    while (i < n) {
+    // Scan from end: for each positive sample, count how many negatives rank after it
+    var negAfter = 0
+    var batchPos = 0
+    var batchNeg = 0
+    var i = n - 1
+    while (i >= 0) {
       val idx = sortedIndices(i)
-      val label = labels(idx)
-      val weight = 1.0
-
-      if (label > 0.5f) {
-        posCount += 1
-        posPredsSum += weight
-        pairs += (n - i - 1) * weight
+      if (labels(idx) <= 0.5f) {
+        negAfter += 1
+        batchNeg += 1
       } else {
-        negCount += 1
-        pairs += posCount * weight
+        pairs += negAfter
+        batchPos += 1
       }
-      i += 1
+      i -= 1
     }
+    posCount += batchPos
+    negCount += batchNeg
   }
 
   def compute(): Float = {
@@ -58,10 +57,9 @@ class AUC(posLabel: Int = 1) extends Metric {
   }
 
   def reset(): Unit = {
+    pairs = 0.0
     posCount = 0
     negCount = 0
-    posPredsSum = 0.0
-    pairs = 0.0
   }
 }
 
@@ -142,6 +140,7 @@ class Accuracy(threshold: Float = 0.5f) extends Metric {
 
 /**
  * Top-K Hit Rate
+ * For CTR: rank all predictions, check if any positive label is in top-k
  */
 class HitRate[K: Numeric](k: Int) extends Metric {
   private var hits = 0
@@ -150,18 +149,22 @@ class HitRate[K: Numeric](k: Int) extends Metric {
   def name: String = s"Hit@$k"
 
   def update(predictions: Array[Float], labels: Array[Float]): Unit = {
-    total += 1
-    val topK = labels.take(k)
-    var i = 0
+    val n = predictions.length
+    if (n == 0) return
+    // Sort indices by prediction score (descending), take top-k
+    val sortedIndices = predictions.indices.sortBy(i => -predictions(i))
+    val topKIndices = sortedIndices.take(math.min(k, n))
     var found = false
-    while (i < topK.length && !found) {
-      if (topK(i) > 0) found = true
+    var i = 0
+    while (i < topKIndices.length && !found) {
+      if (labels(topKIndices(i)) > 0.5f) found = true
       i += 1
     }
+    total += 1
     if (found) hits += 1
   }
 
-  def compute(): Float = hits.toFloat / total
+  def compute(): Float = if (total == 0) 0.0f else hits.toFloat / total
 
   def reset(): Unit = {
     hits = 0

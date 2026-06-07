@@ -11,6 +11,7 @@ import torchrec.data.DataLoader
 import torchrec.models.multi_task._
 import torchrec.basic.metrics._
 import torchrec.basic.losses.BCELoss
+import torchrec.utils.DeviceSupport
 
 /**
  * Trainer for multi-task learning models (MMOE, SharedBottom, PLE, AITM, ESMM)
@@ -20,7 +21,7 @@ class MTLTrainer(
   taskNames: List[String],
   learningRate: Float = 1e-3f,
   weightDecay: Float = 1e-6f,
-  device: String = "cuda",
+  device: String = DeviceSupport.backend,
   numEpochs: Int = 10,
   earlyStopPatience: Int = 5,
   taskWeights: Option[Map[String, Float]] = None,

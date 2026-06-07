@@ -4,13 +4,15 @@ import org.bytedeco.pytorch._
 import org.bytedeco.pytorch.global.torch
 import org.bytedeco.pytorch.global.torch.ScalarType
 
+import torchrec.utils.DeviceSupport
+
 /**
  * Factorization Machine for 2nd-order feature interactions
  * FM: y = sum_i w_i * x_i + sum_i sum_j<i <w_i, w_j> * x_i * x_j
  */
 class FM(
   embedDim: Int = 8,
-  device: String = "cpu"
+  device: String = DeviceSupport.backend
 ) extends Module {
 
   def forward(embeddings: Tensor): Tensor = {

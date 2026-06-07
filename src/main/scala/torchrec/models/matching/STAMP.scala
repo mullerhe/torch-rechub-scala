@@ -2,6 +2,7 @@ package torchrec.models.matching
 
 import torchrec.basic.features._
 import torchrec.basic.layers._
+import torchrec.utils.DeviceSupport
 
 import org.bytedeco.pytorch._
 import org.bytedeco.pytorch.global.torch
@@ -16,7 +17,7 @@ class STAMP(
   features: List[Feature],
   embedDim: Int = 8,
   attentionDim: Int = 8,
-  device: String = "cpu"
+  device: String = DeviceSupport.backend
 ) extends Module {
 
   private val embedding = new EmbeddingLayer(features, embedDim, device)

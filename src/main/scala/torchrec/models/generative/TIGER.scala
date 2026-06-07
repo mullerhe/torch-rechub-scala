@@ -2,6 +2,7 @@ package torchrec.models.generative
 
 import torchrec.basic.features._
 import torchrec.basic.layers._
+import torchrec.utils.DeviceSupport
 
 import org.bytedeco.pytorch._
 import org.bytedeco.pytorch.global.torch
@@ -21,7 +22,7 @@ class TIGER(
   hiddenDim: Int = 128,
   numLayers: Int = 2,
   dropout: Float = 0.2f,
-  device: String = "cpu"
+  device: String = DeviceSupport.backend
 ) extends Module {
 
   // Frozen item embeddings (no gradient)

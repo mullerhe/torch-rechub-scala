@@ -3,6 +3,7 @@ package torchrec.basic.layers
 import org.bytedeco.pytorch._
 import org.bytedeco.pytorch.global.torch
 
+import torchrec.utils.DeviceSupport
 import scala.collection.mutable
 
 import torchrec.Implicits._
@@ -14,7 +15,7 @@ class CIN(
   embedDim: Int = 8,
   numLayers: Int = 3,
   activation: String = "relu",
-  device: String = "cpu"
+  device: String = DeviceSupport.backend
 ) extends Module {
 
   private val layerSizes: List[Long] = (0 until numLayers).map { i =>

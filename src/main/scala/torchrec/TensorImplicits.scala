@@ -38,7 +38,10 @@ object TensorImplicits {
       tensor.to(d, tensor.dtype())
     }
     def cpu(): Tensor = tensor.cpu()
+    def mps(): Tensor = tensor.mps()
 
+    def npu(): Tensor = tensor.npu()
+    def xpu(): Tensor = tensor.xpu()
     def toType(dtype: ScalarType): Tensor = tensor.toType(dtype)
 
     def relu(): Tensor = tensor.relu()

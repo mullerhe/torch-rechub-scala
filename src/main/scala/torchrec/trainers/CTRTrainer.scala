@@ -8,6 +8,7 @@ import scala.collection.mutable
 import scala.util.Random
 import torchrec.Implicits.*
 import torchrec.TorchRec
+import torchrec.utils.DeviceSupport
 import torchrec.data.*
 import torchrec.basic.metrics.*
 import torchrec.models.ranking.DeepFM
@@ -26,7 +27,7 @@ class CTRTrainer(
   model: Module,
   learningRate: Float = 1e-3f,
   weightDecay: Float = 1e-6f,
-  device: String = "cuda",
+  device: String = DeviceSupport.backend,
   numEpochs: Int = 10,
   earlyStopPatience: Int = 5,
   verbose: Boolean = true

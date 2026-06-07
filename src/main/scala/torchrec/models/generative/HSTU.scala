@@ -4,6 +4,8 @@ import org.bytedeco.pytorch._
 import org.bytedeco.pytorch.global.torch
 import org.bytedeco.pytorch.global.torch.ScalarType
 
+import torchrec.utils.DeviceSupport
+
 import scala.collection.mutable
 
 /**
@@ -17,7 +19,7 @@ class HSTU(
   numLayers: Int = 12,
   maxSeqLen: Int = 512,
   dropout: Float = 0.1f,
-  device: String = "cpu"
+  device: String = DeviceSupport.backend
 ) extends Module {
 
   // Token embeddings
@@ -83,7 +85,7 @@ class HSTULayer(
   embedDim: Int,
   numHeads: Int,
   dropout: Float,
-  device: String = "cpu"
+  device: String = DeviceSupport.backend
 ) extends Module {
 
   require(embedDim % numHeads == 0)

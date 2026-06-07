@@ -2,6 +2,7 @@ package torchrec.models.multi_task
 
 import torchrec.basic.features._
 import torchrec.basic.layers._
+import torchrec.utils.DeviceSupport
 import torchrec.Implicits._
 import torchrec.TensorImplicits.RichTensor
 
@@ -24,7 +25,7 @@ class PLE(
   expertDims: List[Long] = List(128L),
   towerDims: List[Long] = List(64L),
   dropout: Float = 0.2f,
-  device: String = "cpu"
+  device: String = DeviceSupport.backend
 ) extends Module {
 
   private val embeddingLayer = new EmbeddingLayer(features, embedDim, device)

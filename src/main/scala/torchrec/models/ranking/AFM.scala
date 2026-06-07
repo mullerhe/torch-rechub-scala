@@ -4,6 +4,7 @@ import torchrec.basic.features._
 import torchrec.basic.layers._
 import torchrec.Implicits._
 import torchrec.TensorImplicits.RichTensor
+import torchrec.utils.DeviceSupport
 
 import org.bytedeco.pytorch._
 import org.bytedeco.pytorch.global.torch
@@ -25,7 +26,7 @@ class AFM(
   embedDim: Int = 8,
   attentionDim: Int = 8,
   dropout: Float = 0.2f,
-  device: String = "cpu"
+  device: String = DeviceSupport.backend
 ) extends Module {
 
   require(features.nonEmpty, "features cannot be empty")

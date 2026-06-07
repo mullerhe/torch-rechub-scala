@@ -8,6 +8,7 @@ import org.bytedeco.pytorch._
 import org.bytedeco.pytorch.global.torch
 import org.bytedeco.pytorch.global.torch.ScalarType
 
+import torchrec.utils.DeviceSupport
 import scala.jdk.CollectionConverters._
 import scala.collection.mutable
 
@@ -17,7 +18,7 @@ import scala.collection.mutable
 class EmbeddingLayer(
   val features: List[Feature],
   val embedDim: Int = 8,
-  val device: String = "cpu",
+  val device: String = DeviceSupport.backend,
   val paddingIdx: Option[Long] = None,
   val sparse: Boolean = false
 ) extends Module {

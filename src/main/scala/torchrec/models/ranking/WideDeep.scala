@@ -3,6 +3,7 @@ package torchrec.models.ranking
 import torchrec.basic.features._
 import torchrec.basic.layers._
 import torchrec.Implicits._
+import torchrec.utils.DeviceSupport
 
 import org.bytedeco.pytorch._
 import org.bytedeco.pytorch.global.torch
@@ -17,7 +18,7 @@ class WideDeep(
   embedDim: Int = 8,
   mlpDims: List[Long] = List(256L, 128L),
   dropout: Float = 0.2f,
-  device: String = "cpu"
+  device: String = DeviceSupport.backend
 ) extends Module {
 
   // Deep part

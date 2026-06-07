@@ -24,7 +24,7 @@ object DeviceSupport {
 
   /** Device selection flag. AUTO performs platform-aware auto-detection. */
   enum DeviceType {
-    case AUTO, CUDA, MPS, CPU
+    case AUTO, CUDA, MPS, CPU, XPU, NPU
   }
 
   private val osName = System.getProperty("os.name", "").toLowerCase
@@ -49,6 +49,8 @@ object DeviceSupport {
     case "mps" | "metal"           => DeviceType.MPS
     case "cpu"                     => DeviceType.CPU
     case "auto" | ""               => DeviceType.AUTO
+    case "xpu"                     => DeviceType.XPU
+    case "npu"                     => DeviceType.NPU
     case other =>
       println(s"[DeviceSupport] Unknown device '$other', falling back to AUTO")
       DeviceType.AUTO
@@ -110,6 +112,9 @@ object DeviceSupport {
     else if (cudaAvailable) "cuda"
     else "cpu"
   }
+
+  /** Alias for [[backend]]: the device string to use as the project-wide default. */
+  def defaultDevice: String = backend
 
   /** The resolved backend string: "cuda" | "mps" | "cpu". Resolved once, then cached. */
   lazy val backend: String = synchronized {

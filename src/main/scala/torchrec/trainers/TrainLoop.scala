@@ -6,6 +6,7 @@ import org.bytedeco.pytorch.global.torch
 import scala.collection.mutable
 
 import torchrec.data.DataLoader
+import torchrec.utils.DeviceSupport
 
 /**
  * Generic training loop with callbacks support.
@@ -14,7 +15,7 @@ import torchrec.data.DataLoader
 class TrainLoop(
   model: Module,
   optimizer: Optimizer,
-  device: String = "cuda",
+  device: String = DeviceSupport.backend,
   gradientClip: Option[Float] = None
 ) {
   private var trainStep = 0

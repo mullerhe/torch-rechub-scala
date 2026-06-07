@@ -2,6 +2,7 @@ package torchrec.data
 
 import org.bytedeco.pytorch._
 import org.bytedeco.pytorch.global.torch
+import torchrec.utils.DeviceSupport
 
 import scala.jdk.CollectionConverters._
 import scala.collection.mutable
@@ -16,7 +17,7 @@ class DataLoader(
   shuffle: Boolean = true,
   numWorkers: Int = 4,
   dropLast: Boolean = false,
-  device: String = "cuda"
+  device: String = DeviceSupport.backend
 ) extends Iterable[Batch] {
 
   private var currentIndex = 0

@@ -48,6 +48,7 @@ object Implicits {
   }
 
   def cpu(): String = "cpu"
+  def mps(): String = "mps"
   def cuda(device: Int = 0): String = s"cuda:$device"
 
   implicit class RichTensor(val tensor: Tensor) extends AnyVal {

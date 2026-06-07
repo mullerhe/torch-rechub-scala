@@ -4,6 +4,8 @@ import org.bytedeco.pytorch.*
 import org.bytedeco.pytorch.global.torch
 import org.bytedeco.pytorch.global.torch.ScalarType
 
+import torchrec.utils.DeviceSupport
+
 import scala.jdk.CollectionConverters.*
 import scala.collection.mutable
 
@@ -18,7 +20,7 @@ class MLP(
   dropout: Float = 0.0f,
   useBatchNorm: Boolean = false,
   useLayerNorm: Boolean = false,
-  device: String = "cpu"
+  device: String = DeviceSupport.backend
 ) extends Module {
 
   private val layers = mutable.ListBuffer[Module]()
@@ -110,7 +112,7 @@ object DNN {
     activation: String = "relu",
     dropout: Float = 0.0f,
     useBatchNorm: Boolean = false,
-    device: String = "cpu"
+    device: String = DeviceSupport.backend
   ): MLP = new MLP(inputDim, hiddenDims, outputDim, activation, dropout, useBatchNorm, device = device)
 }
 

@@ -2,6 +2,7 @@ package torchrec.models.matching
 
 import torchrec.basic.features._
 import torchrec.basic.layers._
+import torchrec.utils.DeviceSupport
 
 import org.bytedeco.pytorch._
 import org.bytedeco.pytorch.global.torch
@@ -19,7 +20,7 @@ class SASRec(
   numLayers: Int = 2,
   ffnDim: Int = 128,
   dropout: Float = 0.2f,
-  device: String = "cpu"
+  device: String = DeviceSupport.backend
 ) extends Module {
 
   private val embedding = new EmbeddingLayer(features, embedDim, device)

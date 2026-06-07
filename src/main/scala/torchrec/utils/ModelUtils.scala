@@ -3,6 +3,8 @@ package torchrec.utils
 import torchrec.basic.features._
 import torchrec.Implicits._
 
+import torchrec.utils.DeviceSupport
+
 /**
  * Model utilities for introspection and dummy input generation.
  */
@@ -20,7 +22,7 @@ object ModelUtils {
     features: List[Feature],
     batchSize: Int = 2,
     seqLength: Int = 10,
-    device: String = "cpu"
+    device: String = DeviceSupport.backend
   ): Map[String, org.bytedeco.pytorch.Tensor] = {
     import org.bytedeco.pytorch._
     import org.bytedeco.pytorch.global.torch

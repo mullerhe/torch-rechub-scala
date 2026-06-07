@@ -2,6 +2,7 @@ package torchrec.models.ranking
 
 import torchrec.basic.features._
 import torchrec.basic.layers._
+import torchrec.utils.DeviceSupport
 
 import org.bytedeco.pytorch._
 import org.bytedeco.pytorch.global.torch
@@ -21,7 +22,7 @@ class DIN(
   mlpDims: List[Long] = List(256L, 128L),
   dropout: Float = 0.2f,
   attentionUnits: Int = 64,
-  device: String = "cpu"
+  device: String = DeviceSupport.backend
 ) extends Module {
 
   // Embedding layers
@@ -83,7 +84,7 @@ class AttentionNet(
   queryDim: Int,
   hiddenUnits: Int,
   outputDim: Int,
-  device: String = "cpu"
+  device: String = DeviceSupport.backend
 ) extends Module {
 
   private val queryProj = new LinearImpl(queryDim * 2, hiddenUnits)

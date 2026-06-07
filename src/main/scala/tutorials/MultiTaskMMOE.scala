@@ -101,9 +101,12 @@ object MultiTaskMMOE {
     println("\nEvaluating...")
     val metrics = trainer.evaluate(valLoader)
     println("  Task Metrics:")
-    metrics.foreach { case (task, auc) =>
+    taskNames.foreach { task =>
       val weight = taskWeights(task)
-      println(f"    $task (weight=$weight): AUC=$auc%.4f")
+      val auc = metrics(s"${task}_AUC")
+      val logloss = metrics(s"${task}_LogLoss")
+      val acc = metrics(s"${task}_Accuracy")
+      println(f"    $task (weight=$weight): AUC=$auc%.4f, LogLoss=$logloss%.4f, Accuracy=$acc%.4f")
     }
 
     println("""

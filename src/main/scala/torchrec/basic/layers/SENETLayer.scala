@@ -3,13 +3,15 @@ package torchrec.basic.layers
 import org.bytedeco.pytorch._
 import org.bytedeco.pytorch.global.torch
 
+import torchrec.utils.DeviceSupport
+
 /**
  * Squeeze-and-Excitation Network Layer
  * Used in FiBiNet for feature gating
  */
 class SENETLayer(
   reduction: Int = 3,
-  device: String = "cpu"
+  device: String = DeviceSupport.backend
 ) extends Module {
 
   private var inputDim: Long = 0
@@ -61,7 +63,7 @@ class SENETLayer(
  */
 class ContextSENET(
   reduction: Int = 3,
-  device: String = "cpu"
+  device: String = DeviceSupport.backend
 ) extends Module {
 
   private var inputDim: Long = 0

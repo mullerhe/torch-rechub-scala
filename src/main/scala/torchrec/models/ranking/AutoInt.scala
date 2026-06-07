@@ -2,6 +2,7 @@ package torchrec.models.ranking
 
 import torchrec.basic.features._
 import torchrec.basic.layers._
+import torchrec.utils.DeviceSupport
 
 import org.bytedeco.pytorch._
 import org.bytedeco.pytorch.global.torch
@@ -17,7 +18,7 @@ class AutoInt(
   numLayers: Int = 2,
   mlpDims: List[Long] = List(128L, 64L),
   dropout: Float = 0.2f,
-  device: String = "cpu"
+  device: String = DeviceSupport.backend
 ) extends Module {
 
   private val embeddingLayer = new EmbeddingLayer(features, embedDim, device)
@@ -66,7 +67,7 @@ class MultiHeadSelfAttention(
   embedDim: Int,
   numHeads: Int,
   dropout: Float = 0.2f,
-  device: String = "cpu"
+  device: String = DeviceSupport.backend
 ) extends Module {
 
   require(embedDim % numHeads == 0, s"embedDim must be divisible by numHeads")

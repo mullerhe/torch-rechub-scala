@@ -4,6 +4,7 @@ import org.bytedeco.pytorch.*
 import org.bytedeco.pytorch.global.torch
 import org.bytedeco.pytorch.global.torch.ScalarType
 import torchrec.Implicits.RichTensor
+import torchrec.utils.DeviceSupport
 
 /**
  * Cross Network from DCN
@@ -12,7 +13,7 @@ import torchrec.Implicits.RichTensor
 class CrossNetwork(
   inputDim: Long,
   numLayers: Int = 3,
-  device: String = "cpu"
+  device: String = DeviceSupport.backend
 ) extends Module {
 
   private val weights = List.tabulate(numLayers) { i =>
@@ -46,7 +47,7 @@ class CrossNetwork(
 class CrossNetV2(
   inputDim: Long,
   numLayers: Int = 3,
-  device: String = "cpu"
+  device: String = DeviceSupport.backend
 ) extends Module {
 
   private val weights = List.tabulate(numLayers) { i =>
@@ -75,7 +76,7 @@ class CrossNetMix(
   inputDim: Long,
   numLayers: Int = 3,
   lowRank: Int = 4,
-  device: String = "cpu"
+  device: String = DeviceSupport.backend
 ) extends Module {
 
   private val U_kernels = List.tabulate(numLayers) { i =>

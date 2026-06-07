@@ -2,6 +2,7 @@ package torchrec.models.multi_task
 
 import torchrec.basic.features._
 import torchrec.basic.layers._
+import torchrec.utils.DeviceSupport
 
 import org.bytedeco.pytorch._
 import org.bytedeco.pytorch.global.torch
@@ -18,7 +19,7 @@ class AITM(
   embedDim: Int = 8,
   hiddenDim: Int = 64,
   dropout: Float = 0.2f,
-  device: String = "cpu"
+  device: String = DeviceSupport.backend
 ) extends Module {
 
   private val embedding = new EmbeddingLayer(features, embedDim, device)

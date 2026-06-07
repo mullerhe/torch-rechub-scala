@@ -7,6 +7,7 @@ import torchrec.models.ranking._
 import torchrec.models.matching._
 import torchrec.models.multi_task._
 import torchrec.trainers._
+import torchrec.utils.DeviceSupport
 
 import org.bytedeco.pytorch._
 import org.bytedeco.pytorch.global.torch
@@ -47,7 +48,7 @@ case class BenchmarkConfig(
   numEpochs: Int = 3,
   batchSize: Int = 256,
   learningRate: Float = 1e-3f,
-  device: String = "cpu",
+  device: String = DeviceSupport.backend,
   seed: Int = 42
 )
 

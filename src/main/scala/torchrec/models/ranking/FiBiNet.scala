@@ -4,6 +4,7 @@ import torchrec.basic.features._
 import torchrec.basic.layers._
 import torchrec.Implicits._
 import torchrec.TensorImplicits.RichTensor
+import torchrec.utils.DeviceSupport
 
 import org.bytedeco.pytorch._
 import org.bytedeco.pytorch.global.torch
@@ -19,7 +20,7 @@ class FiBiNet(
   reduction: Int = 3,
   bilinearType: String = "field_all",  // "field_all", "field_each", "field_interaction"
   dropout: Float = 0.2f,
-  device: String = "cpu"
+  device: String = DeviceSupport.backend
 ) extends Module {
 
   private val embeddingLayer = new EmbeddingLayer(features, embedDim, device)
@@ -72,7 +73,7 @@ class BilinearInteraction(
   embedDim: Int,
   numFields: Int,
   bilinearType: String,
-  device: String = "cpu"
+  device: String = DeviceSupport.backend
 ) extends Module {
 
   private val weight = bilinearType match {

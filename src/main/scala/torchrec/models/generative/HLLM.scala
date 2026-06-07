@@ -2,6 +2,7 @@ package torchrec.models.generative
 
 import torchrec.basic.features._
 import torchrec.basic.layers._
+import torchrec.utils.DeviceSupport
 
 import org.bytedeco.pytorch._
 import org.bytedeco.pytorch.global.torch
@@ -20,7 +21,7 @@ class HLLM(
   numHeads: Int = 8,
   numLayers: Int = 6,
   dropout: Float = 0.1f,
-  device: String = "cpu"
+  device: String = DeviceSupport.backend
 ) extends Module {
 
   // Frozen item embeddings (no gradient)

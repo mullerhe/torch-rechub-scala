@@ -4,6 +4,8 @@ import org.bytedeco.pytorch._
 import org.bytedeco.pytorch.global.torch
 import org.bytedeco.pytorch.global.torch.ScalarType
 
+import torchrec.utils.DeviceSupport
+
 import scala.collection.mutable
 
 class RQVAE(
@@ -11,7 +13,7 @@ class RQVAE(
   numCodebooks: Int = 8,
   codebookSize: Int = 256,
   latentDim: Int = 64,
-  device: String = "cpu"
+  device: String = DeviceSupport.backend
 ) extends Module {
 
   private val codebooks = (0 until numCodebooks).map { i =>

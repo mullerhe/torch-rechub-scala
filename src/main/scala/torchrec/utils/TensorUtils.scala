@@ -5,9 +5,17 @@ import org.bytedeco.pytorch.{Device, Tensor}
 
 object TensorUtils {
   private val cpuDevice = new Device("cpu")
-
+  private val cudaDevice = new Device("cuda")
+  private val mpsDevice = new Device("mps")
+  
   def toCpu(t: Tensor): Tensor =
     if (t == null) null.asInstanceOf[Tensor] else t.to(cpuDevice, t.scalar_type())
+
+  def toCuda(t: Tensor): Tensor =
+    if (t == null) null.asInstanceOf[Tensor] else t.to(cudaDevice, t.scalar_type())
+
+  def toMps(t: Tensor): Tensor =
+    if (t == null) null.asInstanceOf[Tensor] else t.to(mpsDevice, t.scalar_type())
 
   def readLongs(t: Tensor): Array[Long] = {
     if (t == null) return Array.emptyLongArray

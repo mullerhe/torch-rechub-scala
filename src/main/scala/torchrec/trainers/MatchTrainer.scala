@@ -12,6 +12,7 @@ import org.bytedeco.pytorch.global.torch.ScalarType
 import scala.collection.mutable
 
 import torchrec.basic.losses.BPRLoss
+import torchrec.utils.DeviceSupport
 
 /**
  * Trainer for matching/retrieval models
@@ -20,7 +21,7 @@ class MatchTrainer(
   model: Module,
   learningRate: Float = 1e-3f,
   weightDecay: Float = 1e-6f,
-  device: String = "cuda",
+  device: String = DeviceSupport.backend,
   mode: Int = 0,
   temperature: Float = 0.07f,
   numEpochs: Int = 10,

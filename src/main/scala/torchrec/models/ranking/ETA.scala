@@ -54,8 +54,11 @@ class ETA(
   private val sparseDim = Features.calcSparseDim(features)
 
   // Hash projection for LSH
-  private val hashProjection = new LinearImpl(embedDim, hashSize)
-  hashProjection.to(new Device(device),false)
+  private val hashProjection = {
+    val lp = new LinearImpl(embedDim, hashSize)
+    lp.to(new Device(device), false)
+    lp
+  }
   register_module("hashProjection", hashProjection)
 
   // Activation unit for target attention

@@ -71,7 +71,7 @@ class LNN(
     ()
   }
 
-  def forwardLNN(x: Tensor): Tensor = {
+  def forward(x: Tensor): Tensor = {
     // x: (batch, num_fields, embed_dim)
     val batchSize = x.size(0).toInt
 

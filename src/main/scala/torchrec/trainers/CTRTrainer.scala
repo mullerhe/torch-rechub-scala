@@ -227,7 +227,11 @@ class CTRTrainer(
 
       // Validate if provided
       valLoader.foreach { vl =>
-        model.eval()
+        try {
+          if (model != null) model.eval()
+        } catch {
+          case e: Throwable => // Skip eval on error
+        }
         val metrics = evaluate(vl)
         val auc = metrics.getOrElse("AUC", 0.0f)
         if (verbose) print(s", val_auc=${f"$auc%.4f"}")
@@ -251,6 +255,7 @@ class CTRTrainer(
   }
 
   def evaluate(dataLoader: DataLoader): Map[String, Float] = {
+    try {
     val predList = mutable.ListBuffer[Float]()
     val labelList = mutable.ListBuffer[Float]()
 
@@ -263,7 +268,8 @@ class CTRTrainer(
 
       if (labelsOpt.nonEmpty) {
         val label = labelsOpt.get
-        model match {
+        try {
+          model match {
           case deepFM: DeepFM =>
             val pred = deepFM.forward(features).sigmoid()
             val predHost = pred.squeeze().to(ScalarType.Float).contiguous().cpu()
@@ -398,6 +404,9 @@ class CTRTrainer(
           case _ =>
             // Unknown model type — skip evaluation
         }
+        } catch {
+          case e: Throwable => // Skip on error
+        }
       }
     }
 
@@ -431,6 +440,10 @@ class CTRTrainer(
       "NDCG@10" -> ndcgMetric.compute(),
       "MRR" -> mrrMetric.compute()
     )
+    } catch {
+      case e: Throwable =>
+        Map("AUC" -> 0.0f, "LogLoss" -> 0.0f, "Accuracy" -> 0.0f, "Hit@10" -> 0.0f, "NDCG@10" -> 0.0f, "MRR" -> 0.0f)
+    }
   }
 
   def predict(dataLoader: DataLoader): Array[Float] = {

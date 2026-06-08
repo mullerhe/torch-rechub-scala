@@ -40,7 +40,7 @@ object QuickStartCTR {
     // Step 1: Prepare data
     println("Step 1: Preparing data...")
     val (trainData, valData, testData) = DataGenerator.generateRankingData(
-      numSamples = 5000,
+      numSamples = 1000,
       numSparseFeatures = 3,
       numDenseFeatures = 0,
       vocabSize = 100,

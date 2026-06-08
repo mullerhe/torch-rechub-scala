@@ -108,7 +108,7 @@ object DebugBenchmarks {
 
       val tokensArr = Array.ofDim[Float](numSamples * seqLen)
       for (i <- 0 until numSamples) {
-        val baseIdx = catTensor.select(0, i).item().toInt
+        val baseIdx = catTensor.select(0, i).itemSafe().toInt
         for (j <- 0 until seqLen) {
           val offset = rng.nextInt(100) - 50
           tokensArr(i * seqLen + j) = math.max(0, math.min(vocabSize - 1, baseIdx + offset)).toFloat

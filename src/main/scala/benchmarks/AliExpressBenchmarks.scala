@@ -164,7 +164,7 @@ object AliExpressBenchmarks {
       // Build sequences: for each sample, take a sliding window of indices
       val tokensArr = Array.ofDim[Float](numSamples * seqLen)
       for (i <- 0 until numSamples) {
-        val baseIdx = catTensor.select(0, i).item().toInt
+        val baseIdx = catTensor.select(0, i).itemSafe().toInt
         for (j <- 0 until seqLen) {
           val offset = rng.nextInt(100) - 50  // slight variation
           tokensArr(i * seqLen + j) = math.max(0, math.min(vocabSize - 1, baseIdx + offset)).toFloat
@@ -181,7 +181,7 @@ object AliExpressBenchmarks {
       val clickLabelsRaw = trainDS.taskLabels.get(clickLabelKey)
       val clickLabelsArr = if (clickLabelsRaw.nonEmpty) {
         val raw = clickLabelsRaw.get
-        (0 until numSamples).map(i => raw.select(0, i).item().toFloat).toArray
+        (0 until numSamples).map(i => raw.select(0, i).itemSafe().toFloat).toArray
       } else {
         Array.tabulate(numSamples)(_ => if (rng.nextFloat() > 0.5f) 1.0f else 0.0f)
       }

@@ -298,9 +298,16 @@ object DataGenerator {
     vocabSize: Int = 100,
     trainRatio: Float = 0.7f,
     valRatio: Float = 0.1f,
-    seed: Int = 42
+    seed: Int = 42,
+    featureNames: Seq[String] = Nil
   ): (MultiTaskDataset, MultiTaskDataset, MultiTaskDataset) = {
     val random = new Random(seed)
+
+    // Use provided feature names or generate default names
+    val names = (0 until numFeatures).map { i =>
+      if (featureNames.nonEmpty && i < featureNames.length) featureNames(i)
+      else s"feat_$i"
+    }
 
     val features = mutable.Map[String, Tensor]()
     for (i <- 0 until numFeatures) {
@@ -309,7 +316,7 @@ object DataGenerator {
         // generate indices in range [0, vocabSize-1]
         data(j) = random.nextInt(vocabSize).toFloat
       }
-      features(s"feat_$i") = tensor(data, Array(numSamples.toLong)).toType(ScalarType.Long)
+      features(names(i)) = tensor(data, Array(numSamples.toLong)).toType(ScalarType.Long)
     }
 
     val taskLabels = mutable.Map[String, Tensor]()

@@ -28,8 +28,8 @@ object MatchingDSSM {
 
     // Generate matching data first so we can build feature definitions that match
     println("Defining features and generating matching data...")
-    val numUsers = 5000
-    val numItems = 10000
+    val numUsers = 500
+    val numItems = 1000
     val genNumUserFeatures = 3
     val genNumItemFeatures = 2
     val genVocabSize = 100

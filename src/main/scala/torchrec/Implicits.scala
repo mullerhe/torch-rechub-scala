@@ -65,10 +65,67 @@ object Implicits {
 
     def mean(): Tensor = tensor.mean()
     def sum(): Tensor = tensor.sum()
-    def toFloat: Float = tensor.item().toFloat
+
+    /**
+     * Safely extract a scalar value from a tensor, handling GPU tensors properly.
+     * Automatically moves the tensor to CPU if needed before calling .item()
+     */
+    def itemSafe(): Double = {
+      val cpuTensor = try {
+        // Try to move to CPU if on CUDA
+        if (tensor.is_cuda()) {
+          tensor.cpu()
+        } else {
+          tensor
+        }
+      } catch {
+        case _: Exception =>
+          // If that fails, try using .to() with explicit device
+          try {
+            tensor.to(new Device("cpu"), tensor.dtype())
+          } catch {
+            case _: Exception => tensor
+          }
+      }
+      cpuTensor.item().toDouble
+    }
+
+    def toFloat: Float = {
+      val cpuTensor = try {
+        if (tensor.is_cuda()) {
+          tensor.cpu()
+        } else {
+          tensor
+        }
+      } catch {
+        case _: Exception =>
+          try {
+            tensor.to(new Device("cpu"), tensor.dtype())
+          } catch {
+            case _: Exception => tensor
+          }
+      }
+      cpuTensor.item().toFloat
+    }
 
     def toFloatArray: Array[Float] = {
-      val contig = if (tensor.is_contiguous()) tensor else tensor.contiguous()
+      // Move to CPU if on a different device (e.g., CUDA)
+      val cpuTensor = try {
+        if (tensor.is_cuda()) {
+          tensor.cpu()
+        } else {
+          tensor
+        }
+      } catch {
+        case _: Exception =>
+          try {
+            tensor.to(new Device("cpu"), tensor.dtype())
+          } catch {
+            case _: Exception => tensor
+          }
+      }
+
+      val contig = if (cpuTensor.is_contiguous()) cpuTensor else cpuTensor.contiguous()
       val size = contig.numel().toInt
       if (size == 0) return Array.empty[Float]
       try {
@@ -90,7 +147,7 @@ object Implicits {
           val result = new Array[Float](size)
           var i = 0
           while (i < size) {
-            result(i) = flat.select(0, i).item().toFloat
+            result(i) = flat.select(0, i).itemSafe().toFloat
             i += 1
           }
           result

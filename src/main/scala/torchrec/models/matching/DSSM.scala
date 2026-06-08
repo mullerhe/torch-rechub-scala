@@ -24,8 +24,11 @@ class DSSM(
   private val userEmbedding = new EmbeddingLayer(userFeatures, embedDim, device)
   register_module("userEmbedding", userEmbedding)
 
+  // Calculate total input dim: sparse features + sequence features (after pooling, sequence dim = embedDim)
   private val userSparseDim = Features.calcSparseDim(userFeatures)
-  private val userTower = new MLP(userSparseDim, towerDims, embedDim, "relu", dropout, device = device)
+  private val userSeqDim = Features.calcSequenceDimFromFeatures(userFeatures, "mean")
+  private val userTowerInputDim = userSparseDim + userSeqDim
+  private val userTower = new MLP(userTowerInputDim, towerDims, embedDim, "relu", dropout, device = device)
   register_module("userTower", userTower)
 
   // Item tower
@@ -33,7 +36,9 @@ class DSSM(
   register_module("itemEmbedding", itemEmbedding)
 
   private val itemSparseDim = Features.calcSparseDim(itemFeatures)
-  private val itemTower = new MLP(itemSparseDim, towerDims, embedDim, "relu", dropout, device = device)
+  private val itemSeqDim = Features.calcSequenceDimFromFeatures(itemFeatures, "mean")
+  private val itemTowerInputDim = itemSparseDim + itemSeqDim
+  private val itemTower = new MLP(itemTowerInputDim, towerDims, embedDim, "relu", dropout, device = device)
   register_module("itemTower", itemTower)
 
   if (device != "cpu") {
@@ -61,13 +66,51 @@ class DSSM(
   }
 
   def userTowerForward(userFeats: Map[String, Tensor]): Tensor = {
-    val userEmb = userEmbedding.forward(userFeats, Map.empty, squeeze = false)
+    // Debug: print input shapes
+    userFeats.foreach { case (k, v) =>
+      println(s"[DEBUG DSSM userTowerForward] $k: dim=${v.dim()}, shape=${v.sizes().vec().get().mkString(", ")}")
+    }
+    // Extract sequence features from userFeats:
+    // - 1D (batch,) -> sparse
+    // - 2D (batch, 1) -> sparse
+    // - 2D (batch, seqLen>1) -> sequence
+    // - 3D (batch, 1, seqLen) -> sequence (from DataLoader stacking)
+    val (sparseFeats, sequenceFeats) = userFeats.partition { case (_, tensor) =>
+      tensor.dim() match {
+        case 1L => true  // (batch,) -> sparse
+        case 2L => tensor.size(1) == 1L  // (batch, 1) -> sparse, (batch, seqLen>1) -> sequence
+        case 3L => tensor.size(1) != 1L  // (batch, seqLen, seqLen) -> sparse, (batch, 1, seqLen) -> sequence
+        case _ => false
+      }
+    }
+    // For 3D sequence tensors (batch, 1, seqLen), squeeze to 2D (batch, seqLen)
+    val processedSeqFeats = sequenceFeats.map { case (k, v) =>
+      k -> (if (v.dim() == 3L && v.size(1) == 1L) v.squeeze(1) else v)
+    }
+    val userEmb = userEmbedding.forward(sparseFeats.toMap, processedSeqFeats.toMap, squeeze = false)
     val squeezed = if (userEmb.dim() == 2L && userEmb.size(1) == 1L) userEmb.squeeze(1) else userEmb
     userTower.forward(squeezed)
   }
 
   def itemTowerForward(itemFeats: Map[String, Tensor]): Tensor = {
-    val itemEmb = itemEmbedding.forward(itemFeats, Map.empty, squeeze = false)
+    // Extract sequence features from itemFeats:
+    // - 1D (batch,) -> sparse
+    // - 2D (batch, 1) -> sparse
+    // - 2D (batch, seqLen>1) -> sequence
+    // - 3D (batch, 1, seqLen) -> sequence (from DataLoader stacking)
+    val (sparseFeats, sequenceFeats) = itemFeats.partition { case (_, tensor) =>
+      tensor.dim() match {
+        case 1L => true  // (batch,) -> sparse
+        case 2L => tensor.size(1) == 1L  // (batch, 1) -> sparse, (batch, seqLen>1) -> sequence
+        case 3L => tensor.size(1) != 1L  // (batch, seqLen, seqLen) -> sparse, (batch, 1, seqLen) -> sequence
+        case _ => false
+      }
+    }
+    // For 3D sequence tensors (batch, 1, seqLen), squeeze to 2D (batch, seqLen)
+    val processedSeqFeats = sequenceFeats.map { case (k, v) =>
+      k -> (if (v.dim() == 3L && v.size(1) == 1L) v.squeeze(1) else v)
+    }
+    val itemEmb = itemEmbedding.forward(sparseFeats.toMap, processedSeqFeats.toMap, squeeze = false)
     val squeezed = if (itemEmb.dim() == 2L && itemEmb.size(1) == 1L) itemEmb.squeeze(1) else itemEmb
     itemTower.forward(squeezed)
   }

@@ -32,13 +32,13 @@ object MultiTaskMMOE {
     val taskNames = List("cvr", "ctr", "like")
     val taskTypes = List("classification", "classification", "classification")
 
-    // Define shared features
+    // Define shared features - vocabSize must match or exceed DataGenerator's vocabSize
     println("Defining shared features...")
     val features = List(
-      SparseFeature("user_id", 10000, 16),
-      SparseFeature("item_id", 50000, 16),
-      SparseFeature("category", 1000, 8),
-      SparseFeature("brand", 5000, 8),
+      SparseFeature("user_id", 100, 16),
+      SparseFeature("item_id", 100, 16),
+      SparseFeature("category", 100, 8),
+      SparseFeature("brand", 100, 8),
       SparseFeature("price_level", 10, 4)
     )
     features.foreach(f => println(f"  - ${f.name}: vocab=${f.vocabSize}%,d"))
@@ -60,11 +60,13 @@ object MultiTaskMMOE {
 
     // Generate multi-task data
     println("\nGenerating multi-task data...")
+    val featureNames = features.collect { case f: SparseFeature => f.name }
     val (trainData, valData, testData) = DataGenerator.generateMultiTaskData(
-      numSamples = 10000,
+      numSamples = 1000,
       numFeatures = features.size,
       taskNames = taskNames,
-      vocabSize = 100
+      vocabSize = 100,
+      featureNames = featureNames
     )
     println(f"  Train: ${trainData.size}%,d")
     println(f"  Val: ${valData.size}%,d")

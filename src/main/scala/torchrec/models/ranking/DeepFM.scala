@@ -37,8 +37,10 @@ class DeepFM(
 
   // Deep part — sparseDim is computed dynamically in forward() from the actual
   // embedding tensor shape to guarantee consistency with the incoming sparseFeats.
-  // MLP in-features computed from each SparseFeature's actual embedDim.
-  private val sparseDimConstructor = features.collect { case f: SparseFeature => f.embedDim }.sum
+  // MLP in-features computed using numFields * maxEmbedDim for uniform embedding dim.
+  private val numSparseFeatures = features.collect { case f: SparseFeature => f }.size
+  private val maxEmbedDimFeature = features.collect { case f: SparseFeature => f.embedDim }.max
+  private val sparseDimConstructor = numSparseFeatures * maxEmbedDimFeature
   private val mlp = new MLP(sparseDimConstructor.toLong, mlpDims.map(_.toLong), 1, "relu", dropout, false, device = device)
   register_module("mlp", mlp)
 
@@ -63,9 +65,27 @@ class DeepFM(
     }
     if (embList.isEmpty) throw new IllegalArgumentException("No embeddings found for given features")
 
+    // Determine the maximum embed dim across all features for padding
+    val maxEmbedDim = embList.map(_.size(1)).max.toInt
+    val batchSize = embList.head.size(0)
+
+    // Pad embeddings to maxEmbedDim using zero-padding (manual approach for compatibility)
+    val paddedEmbeddings = embList.map { emb =>
+      val embDim = emb.size(1).toInt
+      if (embDim < maxEmbedDim) {
+        // Create a new tensor with zeros and copy original data
+        val paddedData = Array.fill[Float](batchSize.toInt * maxEmbedDim)(0f)
+        val origData = emb.reshape(batchSize.toLong * embDim.toLong).toFloatArray
+        System.arraycopy(origData, 0, paddedData, 0, origData.length)
+        torch.tensor(paddedData*).view( batchSize.toLong, maxEmbedDim.toLong).to(emb.device(), ScalarType.Float)
+      } else {
+        emb
+      }
+    }
+
     // Ensure all embeddings are on the same device before stacking
-    val targetDev = embList.head.device()
-    val embListOnDev = embList.map(e => if (e.device().equals(targetDev)) e else e.to(targetDev, e.dtype()))
+    val targetDev = paddedEmbeddings.head.device()
+    val embListOnDev = paddedEmbeddings.map(e => if (e.device().equals(targetDev)) e else e.to(targetDev, e.dtype()))
     val embeddings3D = embListOnDev.stack(1) // (batch, num_fields, embed_dim)
 
     // Derive sparseDim dynamically from the actual embedding tensor so it always
@@ -75,7 +95,6 @@ class DeepFM(
     val sparseDimDyn = (numFields * embedDimActual).toLong
 
     // First-order: linear (zero placeholder)
-    val batchSize = embeddings3D.size(0)
     val linearOut = torch.zeros(Array(batchSize.toLong, 1L),
       new TensorOptions().dtype(new ScalarTypeOptional(ScalarType.Float)))
       .to(embeddings3D.device(), ScalarType.Float)

@@ -85,12 +85,22 @@ class EmbeddingLayer(
       val embed = embeddingTables.get(name).orElse(embeddingTables.get(s"${name}_seq"))
       embed.foreach { e =>
         val embedDev = e.weight().device()
-        val idxOnDev = if (indices.device().equals(embedDev)) {
-          indices.toType(ScalarType.Long)
+        // Ensure indices is 1D for embedding lookup (squeeze if 2D with last dim 1)
+        val idx1d = if (indices.dim() == 2L && indices.size(1) == 1L) {
+          indices.squeeze(1)
         } else {
-          indices.toType(ScalarType.Long).to(embedDev, ScalarType.Long)
+          indices
         }
-        embeddingList += e.forward(idxOnDev)
+        val idxOnDev = if (idx1d.device().equals(embedDev)) {
+          idx1d.toType(ScalarType.Long)
+        } else {
+          idx1d.toType(ScalarType.Long).to(embedDev, ScalarType.Long)
+        }
+        val emb = e.forward(idxOnDev)
+        // Add dimension if squeezed (batch,) -> (batch, 1, embedDim)
+        val emb3d = if (emb.dim() == 2L) emb.unsqueeze(1) else emb
+        println(s"[DEBUG sparse] $name: idx1d shape=${idx1d.size(0)}, emb shape=${emb.size(0)}x${emb.size(1)}, emb3d=${emb3d.size(0)}x${emb3d.size(1)}x${emb3d.size(2)}")
+        embeddingList += emb3d
       }
     }
 
@@ -108,9 +118,13 @@ class EmbeddingLayer(
         // Apply pooling
         val pooled = emb match {
           case _ if name.endsWith("_mean") || name.endsWith("_sum") || name.endsWith("_concat") =>
+            println(s"[DEBUG] $name skipping pool")
             emb
           case _ =>
-            poolSequence(emb, idxOnDev, "mean")
+            println(s"[DEBUG] $name before pool: ${emb.size(0)}x${emb.size(1)}")
+            val pooledEmb = poolSequence(emb, idxOnDev, "mean")
+            println(s"[DEBUG] $name after pool: ${pooledEmb.size(0)}x${pooledEmb.size(1)}")
+            pooledEmb
         }
         embeddingList += pooled
       }
@@ -126,26 +140,41 @@ class EmbeddingLayer(
 
     val batchSize = embeddingList.head.size(0).toInt
     val numFields = embeddingList.size
-    val embedDims = embeddingList.map(e => (e.numel().toInt / batchSize))
-    val embedDim = if (embedDims.nonEmpty) embedDims.head else 0
+
+    // Calculate actual dimensions for each embedding (handle both 2D and 3D tensors)
+    // 2D: (batch, embedDim), 3D: (batch, 1, embedDim)
+    val embedDims = embeddingList.map(e => if (e.dim() == 3L) e.size(2).toInt else e.size(1).toInt)
+    val totalDim = embedDims.sum
+
+    // Debug output
+    println(s"[DEBUG EmbeddingLayer] batchSize=$batchSize, numFields=$numFields, embedDims=$embedDims, totalDim=$totalDim")
 
     // Manually concatenate embeddings into a single tensor to avoid JNI device issues
-    val resultArr = new Array[Float](batchSize * numFields * embedDim)
+    // Move embeddings to CPU first to avoid CUDA device assert errors when calling toFloatArray
+    val resultArr = new Array[Float](batchSize * totalDim)
+    var offset = 0
     for ((emb, f) <- embeddingList.zipWithIndex) {
-      val arr = emb.toFloatArray
+      // Move to CPU before converting to FloatArray
+      val embCpu = try {
+        if (emb.is_cuda()) emb.cpu() else emb
+      } catch {
+        case _: Exception => emb.to(new Device("cpu"), ScalarType.Float)
+      }
+      val arr = embCpu.toFloatArray
+      val thisDim = embedDims(f)
       var i = 0
       while (i < batchSize) {
         var k = 0
-        while (k < embedDim) {
-          resultArr((i * numFields + f) * embedDim + k) = arr(i * embedDim + k)
+        while (k < thisDim) {
+          resultArr(i * totalDim + offset + k) = arr(i * thisDim + k)
           k += 1
         }
         i += 1
       }
+      offset += thisDim
     }
     val embedDev = embeddingList.head.device()
-    val concatenated = torchrec.TorchRec.tensor(resultArr, batchSize.toLong, numFields.toLong, embedDim.toLong).to(embedDev, ScalarType.Float)
-    val flattened = concatenated.view(batchSize.toLong, (numFields * embedDim).toLong)
+    val flattened = torchrec.TorchRec.tensor(resultArr, batchSize.toLong, totalDim.toLong).to(embedDev, ScalarType.Float)
     if (squeeze && embeddingList.size == 1) {
       flattened.squeeze(1)
     } else {

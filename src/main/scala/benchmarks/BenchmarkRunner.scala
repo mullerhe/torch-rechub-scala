@@ -70,47 +70,48 @@ object BenchmarkRunner {
     val results = mutable.ListBuffer[BenchmarkResult]()
 
     // Ranking benchmarks
-//    results += runDeepFMBenchmark()
-//    results += runWideDeepBenchmark()
-//    results += runDCNBenchmark()
-//    results += runDCNv2Benchmark()
-//    results += runAutoIntBenchmark()
-//    results += runFiBiNetBenchmark()
-//    results += runAFMBenchmark()
-//    results += runEDCNBenchmark()
-//    results += runXDeepFMBenchmark()
-//    results += runNFMBenchmark()
-//    results += runFNNBenchmark()
-//    results += runFNFMBenchmark()
-//    results += runAFNBenchmark()
-//    results += runHoFMBenchmark()
-//    results += runPNNBenchmark()
-//    results += runLRBenchmark()
+    results += runDeepFMBenchmark()
+    results += runWideDeepBenchmark()
 
+    results += runDCNv2Benchmark()
+    results += runAutoIntBenchmark()
+    results += runFiBiNetBenchmark()
+    results += runAFMBenchmark()
+    System.gc()
+    results += runXDeepFMBenchmark()
+    results += runNFMBenchmark()
+    results += runFNNBenchmark()
+    results += runFNFMBenchmark()
+    results += runAFNBenchmark()
+    results += runHoFMBenchmark()
+    results += runPNNBenchmark()
+    System.gc()
+    results += runLRBenchmark()
+    results += runDCNBenchmark()
+    results += runEDCNBenchmark()
+    System.gc()
+//     Matching benchmarks
+    results += runDSSMBenchmark()
+    results += runNCFBenchmark()
+//     Multi-task benchmarks
+    results += runSharedBottomBenchmark()
+    results += runESMMBenchmark()
+    System.gc()
+    results += runOMoEBenchmark()
+    results += runSingleTaskModelBenchmark()
+    results += runAITMBenchmark()
+    results += runMMOEBenchmark()
+    System.gc()
+    results += runPLEBenchmark()
+    results += runMetaHeacBenchmark()
 
-
-    // Matching benchmarks
-//    results += runDSSMBenchmark()
-//    results += runNCFBenchmark()
-
-    // Multi-task benchmarks
-//    results += runSharedBottomBenchmark()
-//    results += runESMMBenchmark()
-//    results += runOMoEBenchmark()
-//    results += runSingleTaskModelBenchmark()
-//    results += runAITMBenchmark()
-//    results += runMMOEBenchmark()
-//    results += runPLEBenchmark()
-
-//    results += runMetaHeacBenchmark()
-
-//    results += runXGBoostBenchmark()
-
-//    results += runMEMBABenchmark()
-//    results += runMAMBABenchmark()
-//    results += runLLM4RecBenchmark()
-
-    results += runLiquidNetWorkBenchmark()
+    results += runXGBoostBenchmark()
+    System.gc()
+    results += runMEMBABenchmark()
+    results += runMAMBABenchmark()
+    results += runLLM4RecBenchmark()
+    System.gc()
+//    results += runLiquidNetWorkBenchmark()
 
     // AliExpress dataset benchmarks with specific models
     results += runXGBoostAliExpressBenchmark()
@@ -378,7 +379,7 @@ object BenchmarkRunner {
       task = Matching,
       modelName = "DSSM",
       datasetName = "synthetic",
-      numSamples = 5000,
+      numSamples = 1000,
       embedDim = 8,
       numEpochs = 2,
       batchSize = 128
@@ -878,7 +879,7 @@ object BenchmarkRunner {
       val rng = new Random(42)
       val tokensArr = Array.ofDim[Float](numSamples * seqLen)
       for (i <- 0 until numSamples) {
-        val baseIdx = catTensor.select(0, i).item().toInt
+        val baseIdx = catTensor.select(0, i).itemSafe().toInt
         for (j <- 0 until seqLen) {
           val offset = rng.nextInt(100) - 50  // slight variation
           tokensArr(i * seqLen + j) = math.max(0, math.min(vocabSize - 1, baseIdx + offset)).toFloat
@@ -895,7 +896,7 @@ object BenchmarkRunner {
       val clickLabelsRaw = trainDS.taskLabels.get(clickLabelKey)
       val clickLabelsArr = if (clickLabelsRaw.nonEmpty) {
         val raw = clickLabelsRaw.get
-        (0 until numSamples).map(i => raw.select(0, i).item().toFloat).toArray
+        (0 until numSamples).map(i => raw.select(0, i).itemSafe().toFloat).toArray
       } else {
         Array.tabulate(numSamples)(_ => if (rng.nextFloat() > 0.5f) 1.0f else 0.0f)
       }

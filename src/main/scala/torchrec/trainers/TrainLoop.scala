@@ -7,6 +7,7 @@ import scala.collection.mutable
 
 import torchrec.data.DataLoader
 import torchrec.utils.DeviceSupport
+import torchrec.Implicits._
 
 /**
  * Generic training loop with callbacks support.
@@ -36,23 +37,23 @@ class TrainLoop(
       val dev = new Device(device)
       var begin = model.parameters().begin()
       var end = model.parameters().end()
-      while (!begin.equals(end)) {
-        val p = begin.get()
-        if (p.grad() != null) {
-          val grad = p.grad()
-          val norm = grad.norm()
-          if (norm.item().toFloat > clipValue) {
-            grad.div_(new Scalar((norm.item().toFloat / clipValue).toDouble))
-          }
-        }
-        begin.increment()
-      }
+       while (!begin.equals(end)) {
+         val p = begin.get()
+         if (p.grad() != null) {
+           val grad = p.grad()
+           val norm = grad.norm()
+           if (norm.itemSafe().toFloat > clipValue) {
+             grad.div_(new Scalar((norm.itemSafe() / clipValue)))
+           }
+         }
+         begin.increment()
+       }
 
     }
 
     optimizer.step()
     trainStep += 1
-    val metrics = Map("loss" -> loss.item().toFloat)
+    val metrics = Map("loss" -> loss.itemSafe().toFloat)
     (loss, metrics)
   }
 
@@ -82,24 +83,24 @@ class TrainLoop(
       gradientClip.foreach { clipValue =>
         var begin = model.parameters().begin()
         var end = model.parameters().end()
-        while(!begin.equals(end)){
-          val p = begin.get()
-          if (p.grad() != null) {
-            val grad = p.grad()
-            val norm = grad.norm()
-            if (norm.item().toFloat > clipValue) {
-              grad.div_(new Scalar((norm.item().toFloat / clipValue).toDouble))
-            }
-          }
-          begin.increment()
-        }
+       while(!begin.equals(end)){
+         val p = begin.get()
+         if (p.grad() != null) {
+           val grad = p.grad()
+           val norm = grad.norm()
+           if (norm.itemSafe().toFloat > clipValue) {
+             grad.div_(new Scalar((norm.itemSafe() / clipValue)))
+           }
+         }
+         begin.increment()
+       }
 
       }
 
       optimizer.step()
       trainStep += 1
 
-      val batchLoss = loss.item().toFloat
+      val batchLoss = loss.itemSafe().toFloat
       totalLoss("loss") = totalLoss.getOrElse("loss", 0.0) + batchLoss
       numBatches += 1
     }

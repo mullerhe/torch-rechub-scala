@@ -163,8 +163,9 @@ object DataGenerator {
     numFeatures: Int,
     taskNames: List[String],
     vocabSize: Int,
-    seed: Int = 42
+    seed: Int = 42,
+    featureNames: Seq[String] = Nil
   ): (Dataset, Dataset, Dataset) = {
-    generateRankingData(numSamples, numFeatures, 0, vocabSize, 0.8f, 0.1f, seed)
+    generateRankingData(numSamples, numFeatures, 0, vocabSize, 0.8f, 0.1f, seed, featureNames)
   }
 }

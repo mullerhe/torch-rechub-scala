@@ -26,7 +26,7 @@ object CensusExample {
     println("=" * 70)
 
     // Configuration
-    val numSamples = 10000
+    val numSamples = 2000
     val numFeatures = 30
     val taskNames = List("cvr", "ctr")  // cvr = income, ctr = marital status
     val vocabSize = 100

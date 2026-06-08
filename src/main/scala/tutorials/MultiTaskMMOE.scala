@@ -7,6 +7,7 @@ import torchrec.basic.features._
 import torchrec.data._
 import torchrec.models.multi_task._
 import torchrec.trainers._
+import torchrec.utils.DeviceSupport
 
 /**
  * Tutorial: Multi-Task Learning with MMOE
@@ -18,6 +19,11 @@ import torchrec.trainers._
 object MultiTaskMMOE {
 
   def main(args: Array[String]): Unit = {
+    // Use CPU to avoid CUDA device issues
+//    DeviceSupport.setDevice(DeviceSupport.DeviceType.CPU)
+    DeviceSupport.setDevice(DeviceSupport.DeviceType.AUTO)
+    val device = DeviceSupport.backend
+    println(s"[DeviceSupport] Active device: $device")
     println("""
       |=============================================================
       | Tutorial: Multi-Task Learning with MMOE
@@ -34,12 +40,13 @@ object MultiTaskMMOE {
 
     // Define shared features - vocabSize must match or exceed DataGenerator's vocabSize
     println("Defining shared features...")
+    val vocabSize = 100
     val features = List(
-      SparseFeature("user_id", 100, 16),
-      SparseFeature("item_id", 100, 16),
-      SparseFeature("category", 100, 8),
-      SparseFeature("brand", 100, 8),
-      SparseFeature("price_level", 10, 4)
+      SparseFeature("user_id", vocabSize, 16),
+      SparseFeature("item_id", vocabSize, 16),
+      SparseFeature("category", vocabSize, 8),
+      SparseFeature("brand", vocabSize, 8),
+      SparseFeature("price_level", vocabSize, 4)
     )
     features.foreach(f => println(f"  - ${f.name}: vocab=${f.vocabSize}%,d"))
 
@@ -52,7 +59,8 @@ object MultiTaskMMOE {
       embedDim = 16,
       numExperts = 4,
       expertDims = List(128),
-      towerDims = List(64L)
+      towerDims = List(64L),
+      device = device
     )
     println(s"  Model: MMOE(tasks=${taskNames.mkString(", ")})")
     println("  Experts: 4")
@@ -73,8 +81,8 @@ object MultiTaskMMOE {
     println(f"  Test: ${testData.size}%,d")
 
     // Create data loaders
-    val trainLoader = new DataLoader(trainData, batchSize = 256, shuffle = true)
-    val valLoader = new DataLoader(valData, batchSize = 256, shuffle = false)
+    val trainLoader = new DataLoader(trainData, batchSize = 256, shuffle = true, device = device)
+    val valLoader = new DataLoader(valData, batchSize = 256, shuffle = false, device = device)
 
     // Define task weights
     val taskWeights = Map(
@@ -89,6 +97,7 @@ object MultiTaskMMOE {
       model = model,
       taskNames = taskNames,
       learningRate = 1e-3f,
+      device = device,
       numEpochs = 5,
       earlyStopPatience = 3,
       taskWeights = Some(taskWeights),

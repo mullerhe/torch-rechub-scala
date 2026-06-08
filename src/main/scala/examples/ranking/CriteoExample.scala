@@ -27,7 +27,7 @@ object CriteoExample {
     println("=" * 70)
 
     // Configuration
-    val numSamples = 10000
+    val numSamples = 2000
     val numSparseFeatures = 13
     val numDenseFeatures = 13
     val vocabSize = 1000

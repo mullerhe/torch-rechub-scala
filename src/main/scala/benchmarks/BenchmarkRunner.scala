@@ -69,6 +69,8 @@ object BenchmarkRunner {
     // Run all benchmarks
     val results = mutable.ListBuffer[BenchmarkResult]()
 
+//    results += runLiquidNetWorkBenchmark()
+
     // Ranking benchmarks
     results += runDeepFMBenchmark()
     results += runWideDeepBenchmark()
@@ -111,7 +113,6 @@ object BenchmarkRunner {
     results += runMAMBABenchmark()
     results += runLLM4RecBenchmark()
     System.gc()
-//    results += runLiquidNetWorkBenchmark()
 
     // AliExpress dataset benchmarks with specific models
     results += runXGBoostAliExpressBenchmark()

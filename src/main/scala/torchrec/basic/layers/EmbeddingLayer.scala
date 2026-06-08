@@ -184,6 +184,10 @@ class EmbeddingLayer(
 
   private def poolSequence(emb: Tensor, indices: Tensor, pooling: String): Tensor = {
     val padIdx = paddingIdx.getOrElse(0L)
+    // Handle 1D indices (single item per batch): return embedding directly
+    if (indices.dim() == 1L) {
+      return emb
+    }
     pooling match {
       case "mean" =>
         val padTensor = torch.full(Array(1L), new Scalar(padIdx)).to(indices.device(), ScalarType.Long)

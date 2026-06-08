@@ -32,15 +32,16 @@ object RealDataBenchmark {
     // MovieLens 1M - DSSM two-tower retrieval
     results += benchmarkMovieLens(device)
 
+    System.gc()
     // Criteo day_15 - DeepFM CTR
     results += benchmarkCriteo(device)
-
+    System.gc()
     // Census-Income (UCI Adult) - DeepFM binary classification
     results += benchmarkCensus(device)
-
+    System.gc()
     // Amazon Fine Food Reviews - DSSM two-tower retrieval
     results += benchmarkAmazon(device)
-
+    System.gc()
     printResults(results.toList)
   }
 

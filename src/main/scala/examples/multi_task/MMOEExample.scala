@@ -21,7 +21,7 @@ object MMOEExample {
     println("=" * 60)
 
     // Configuration
-    val numSamples = 10000
+    val numSamples = 3000
     val numFeatures = 10
     val vocabSize = 100
     val embedDim = 8

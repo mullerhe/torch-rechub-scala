@@ -26,7 +26,7 @@ object MovieLensSeqExample {
     println("=" * 70)
 
     // Configuration
-    val numSamples = 5000
+    val numSamples = 1000
     val vocabSize = 500
     val embedDim = 64
     val numHeads = 2

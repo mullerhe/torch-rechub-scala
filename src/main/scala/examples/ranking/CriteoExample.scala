@@ -194,6 +194,44 @@ object CriteoExample {
           device = device
         )
 
+      case "xdeepfm" | "xdeep_fm" =>
+        new xDeepFM(
+          features = allFeatures,
+          embedDim = embedDim,
+          crossLayerSizes = List(128, 64),
+          mlpDims = mlpDims,
+          splitHalf = true,
+          dropout = 0.2f,
+          device = device
+        )
+
+      case "nfm" =>
+        new NFM(
+          features = allFeatures,
+          embedDim = embedDim,
+          mlpDims = mlpDims,
+          dropout = 0.2f,
+          device = device
+        )
+
+      case "fnn" =>
+        new FNN(
+          features = allFeatures,
+          embedDim = embedDim,
+          mlpDims = mlpDims,
+          dropout = 0.2f,
+          device = device
+        )
+
+      case "fnfm" =>
+        new FNFM(
+          features = allFeatures,
+          embedDim = embedDim,
+          mlpDims = mlpDims,
+          dropout = 0.2f,
+          device = device
+        )
+
       case _ =>
         println(s"  Warning: Unknown model '$modelName', defaulting to DeepFM")
         new DeepFM(

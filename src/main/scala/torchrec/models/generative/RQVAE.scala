@@ -18,6 +18,7 @@ class RQVAE(
 
   private val codebooks = (0 until numCodebooks).map { i =>
     val codebook = new EmbeddingImpl(codebookSize, embedDim)
+    codebook.to(new Device(device),false)
     register_module(s"codebook_$i", codebook)
     codebook
   }

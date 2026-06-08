@@ -81,6 +81,11 @@ class InterestExtractor(
 
   private val interestQuery = new LinearImpl(embedDim, numInterests * embedDim)
 
+  queryProj.to(new Device(device),false)
+  keyProj.to(new Device(device),false)
+  valueProj.to(new Device(device),false)
+  interestQuery.to(new Device(device),false)
+
   register_module("queryProj", queryProj)
   register_module("keyProj", keyProj)
   register_module("valueProj", valueProj)

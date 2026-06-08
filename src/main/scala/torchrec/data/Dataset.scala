@@ -286,10 +286,11 @@ class TensorDataset(
   override def get(index: Long): Batch = {
     // Ensure index is within bounds
     val safeIndex = index.min(size - 1).max(0)
-    // Use slice to get 1D sub-tensor, then unsqueeze to ensure consistent shape
+    // Return contiguous copies to avoid view-related tensor issues
     def getFeature(v: Tensor): Tensor = {
       val sliced = v.narrow(0, safeIndex, 1)
-      if (sliced.dim() == 0) sliced.unsqueeze(0) else sliced
+      val result = if (sliced.dim() == 0) sliced.unsqueeze(0) else sliced
+      result.contiguous().clone()
     }
     Batch(
       sparseFeatures.map { case (k, v) => k -> getFeature(v) },
@@ -313,7 +314,8 @@ class SequenceDataset(
   val positions: Option[Tensor] = None,
   val timeDiffs: Option[Tensor] = None,
   val tokens: Option[Tensor] = None,
-  val targets: Option[Tensor] = None
+  val targets: Option[Tensor] = None,
+  val itemFeatures: Option[Map[String, Tensor]] = None
 ) extends Dataset {
 
   override def size: Long = {
@@ -332,7 +334,8 @@ class SequenceDataset(
       tokens.map(_.select(0, index)),
       positions.map(_.select(0, index)),
       timeDiffs.map(_.select(0, index)),
-      targets.map(_.select(0, index))
+      targets.map(_.select(0, index)),
+      itemFeatures.map(m => m.map { case (k, v) => k -> v.select(0, index) }).getOrElse(Map.empty)
     )
   }
 
@@ -347,7 +350,9 @@ class MatchingDataset(
   val userFeatures: Map[String, Tensor],
   val itemFeatures: Map[String, Tensor],
   val labels: Option[Tensor] = None,
-  val negItemFeatures: Option[Map[String, Tensor]] = None
+  val negItemFeatures: Option[Map[String, Tensor]] = None,
+  val tokens: Option[Tensor] = None,
+  val positions: Option[Tensor] = None
 ) extends Dataset {
 
   override def size: Long = {
@@ -359,11 +364,12 @@ class MatchingDataset(
   }
 
   override def get(index: Long): Batch = {
-    // Use narrow to get 1D/2D slices that preserve dimension, matching TensorDataset behavior
+    // Return contiguous copies to avoid view-related tensor issues
     def safeNarrow(v: Tensor, idx: Long): Tensor = {
       val safeIdx = math.min(idx, v.size(0) - 1)
       val sliced = v.narrow(0, safeIdx, 1)
-      if (sliced.dim() == 0) sliced.unsqueeze(0) else sliced
+      val result = if (sliced.dim() == 0) sliced.unsqueeze(0) else sliced
+      result.contiguous().clone()
     }
 
     Batch(
@@ -371,8 +377,8 @@ class MatchingDataset(
       Map.empty,
       Map.empty,
       labels.map(l => safeNarrow(l, index)),
-      None,
-      None,
+      tokens.map(_.select(0, index).contiguous().clone()),
+      positions.map(_.select(0, index).contiguous().clone()),
       None,
       None,
       itemFeatures.map { case (k, v) => k -> safeNarrow(v, index) }

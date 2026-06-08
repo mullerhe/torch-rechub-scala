@@ -103,11 +103,15 @@ class CrossNetMix(
   def forward(x0: Tensor): Tensor = {
     var xl = x0
     for (i <- 0 until numLayers) {
-      // Low-rank decomposition: x_{l+1} = x_0 * (U_i^T * (V_i * x_l))^T + x_l
-      val uxl = U_kernels(i).forward(xl) // (batch, rank)
-      val vxl = V_kernels(i).forward(xl) // (batch, rank)
-      val uvxl = uxl.mul(vxl).sum(1) // (batch, rank)
-      xl = C_kernels(i).forward(uvxl.unsqueeze(1)).squeeze(1).add(xl)
+      val uxl = U_kernels(i).forward(xl)           // (batch, rank)
+      val vxl = V_kernels(i).forward(xl)            // (batch, rank)
+      val uvxl = uxl.mul(vxl)                      // (batch, rank) element-wise
+      // unsqueeze(1): (batch, rank) -> (batch, 1, rank)
+      // C(rank, dim) @ (batch, 1, rank)^T: (batch, 1, rank) @ (rank, dim) -> (batch, 1, dim)
+      // squeeze(1) -> (batch, dim); then x0 * cx + xl
+      val uvxl1d = uvxl.unsqueeze(1)  // (batch, 1, rank)
+      val cx = C_kernels(i).forward(uvxl1d).squeeze(1)  // (batch, dim)
+      xl = x0.mul(cx).add(xl)
     }
     xl
   }

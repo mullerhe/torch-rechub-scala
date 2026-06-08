@@ -3,23 +3,17 @@ package torchrec.models.ranking
 import torchrec.basic.features._
 import torchrec.basic.layers._
 import torchrec.Implicits._
-import torchrec.TensorImplicits.RichTensor
 import torchrec.utils.DeviceSupport
 
-import org.bytedeco.pytorch._
 import org.bytedeco.pytorch.global.torch
 import org.bytedeco.pytorch.global.torch.ScalarType
+import org.bytedeco.pytorch._
+import org.bytedeco.pytorch._
 
 /**
  * Attentional Factorization Machine (AFM)
  * Reference: "Attentional Factorization Machine: Learning the Weight of Feature Interactions via Attention Networks"
  * Zhejiang University, IJCAI 2017
- *
- * @param features List of sparse features
- * @param embedDim Embedding dimension
- * @param attentionDim Attention network hidden dimension
- * @param dropout Dropout rate
- * @param device Device to run on
  */
 class AFM(
   features: List[Feature],
@@ -38,9 +32,9 @@ class AFM(
   private val embedding = new EmbeddingLayer(features, embedDim, device)
   register_module("embedding", embedding)
 
-  // Attention network for pairwise interactions
+  // Attention network: input=embed_dim, hidden=attentionDim, output=1
   private val attentionNet = new MLP(
-    embedDim * 3,  // [embed_i, embed_j, element-wise product]
+    embedDim,
     List(attentionDim.toLong),
     1,
     "relu",
@@ -50,62 +44,43 @@ class AFM(
   )
   register_module("attentionNet", attentionNet)
 
-  // Second-order FM layer
-  private val fmInteraction = new FMInteraction(embedDim)
-  register_module("fmInteraction", fmInteraction)
-
   def forward(
     sparseFeats: Map[String, Tensor],
     denseFeats: Map[String, Tensor] = Map.empty
   ): Tensor = {
-    // Get embeddings: (batch, num_fields, embed_dim)
-    val embeddings = embedding.forward(sparseFeats)
+    // Get embeddings: (batch, num_fields * embed_dim)
+    val embeddingsFlat = embedding.forward(sparseFeats)
+    val batchSize = embeddingsFlat.size(0).toInt
+    val dev = embeddingsFlat.device()
 
-    // Get attention weights for each pair of field interactions
-    val attentionWeights = computeAttentionWeights(embeddings)
+    // Reshape to (batch, num_fields, embed_dim)
+    val embeddings = embeddingsFlat.view(batchSize, numFields, embedDim)
 
-    // Apply attention-weighted FM interactions
-    val fmOut = fmInteraction.forward(embeddings)
-    val attendedInteractions = fmOut * attentionWeights
-
-    attendedInteractions
-  }
-
-  private def computeAttentionWeights(embeddings: Tensor): Tensor = {
-    // embeddings: (batch, num_fields, embed_dim)
-    val batchSize = embeddings.size(0)
-    val numFields = embeddings.size(1)
-    val embedDim = embeddings.size(2)
-
-    // Collect all pairwise interactions: (batch, num_pairs, embed_dim)
-    val pairwiseList = scala.collection.mutable.ListBuffer[Tensor]()
+    // Compute attention-weighted pairwise interactions
+    val weightedList = scala.collection.mutable.ListBuffer[Tensor]()
     var i = 0
     while (i < numFields) {
       var j = i + 1
       while (j < numFields) {
-        // Element-wise product of embeddings from field i and j
-        val embI = embeddings.narrow(1, i, 1).squeeze(1)
-        val embJ = embeddings.narrow(1, j, 1).squeeze(1)
-        val product = embI.mul(embJ)
-        pairwiseList += product
+        val vi = embeddings.narrow(1, i, 1).squeeze(1)  // (batch, embed_dim)
+        val vj = embeddings.narrow(1, j, 1).squeeze(1)  // (batch, embed_dim)
+        val ip = vi.mul(vj)  // (batch, embed_dim)
+        val attnScore = attentionNet.forward(ip)  // (batch, 1)
+        val weighted = ip.mul(attnScore)  // (batch, embed_dim)
+        weightedList += weighted
         j += 1
       }
       i += 1
     }
 
-    if (pairwiseList.isEmpty) {
-      return torch.ones(batchSize, 1).to(embeddings.device(), ScalarType.Float)
+    if (weightedList.isEmpty) {
+      return torch.zeros(batchSize.toLong, 1L).to(dev, ScalarType.Float)
     }
 
-    val pairwise = torch.cat(pairwiseList.toList.toTensorVector,  1)
-    // pairwise: (batch, num_pairs, embed_dim)
-
-    // Attention network
-    val attentionScores = attentionNet.forward(pairwise)
-    // attentionScores: (batch, num_pairs, 1)
-
-    // Softmax over attention scores
-    val attnWeights = attentionScores.softmax(1)
-    attnWeights
+    // Sum all weighted interactions
+    val vec = new TensorVector()
+    weightedList.foreach(vec.push_back)
+    val combined = torch.cat(vec, 1L)  // (batch, num_pairs * embed_dim)
+    combined.sum(1L).unsqueeze(1)  // (batch, 1)
   }
 }

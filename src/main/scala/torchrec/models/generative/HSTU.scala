@@ -24,14 +24,17 @@ class HSTU(
 
   // Token embeddings
   private val tokenEmbedding = new EmbeddingImpl(vocabSize, embedDim)
+  tokenEmbedding.to(new Device(device),false)
   register_module("tokenEmbedding", tokenEmbedding)
 
   // Position embeddings
   private val positionEmbedding = new EmbeddingImpl(maxSeqLen, embedDim)
+  positionEmbedding.to(new Device(device),false)
   register_module("positionEmbedding", positionEmbedding)
 
   // Time difference embeddings
   private val timeEmbedding = new EmbeddingImpl(512, embedDim)  // max_time_bins
+  timeEmbedding.to(new Device(device),false)
   register_module("timeEmbedding", timeEmbedding)
 
   // HSTU layers
@@ -43,6 +46,7 @@ class HSTU(
 
   // Output projection
   private val outputProj = new LinearImpl(embedDim, vocabSize)
+  outputProj.to(new Device(device),false)
   register_module("outputProj", outputProj)
 
   private val layernorm = new LayerNormImpl(new LongVector(embedDim.toLong))
@@ -93,10 +97,12 @@ class HSTULayer(
 
   // Unified feature projector (UVQK)
   private val uvqk = new LinearImpl(embedDim, 4 * embedDim)
+  uvqk.to(new Device(device),false)
   register_module("uvqk", uvqk)
 
   // Output projector
   private val o = new LinearImpl(embedDim, embedDim)
+  o.to(new Device(device),false)
   register_module("o", o)
 
   // SiLU activation

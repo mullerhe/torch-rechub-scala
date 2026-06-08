@@ -29,6 +29,7 @@ class GRU4Rec(
   register_module("encoder", encoder)
 
   private val output = new LinearImpl(hiddenDim, embedDim)
+  output.to(new Device(device),false)
   register_module("output", output)
 
   def forward(sequence: Tensor): Tensor = {

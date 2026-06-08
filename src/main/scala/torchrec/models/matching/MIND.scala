@@ -32,7 +32,7 @@ class MIND(
   register_module("sequenceEmbedding", sequenceEmbedding)
 
   // Capsule routing
-  private val capsuleNet = new CapsuleNetwork(embedDim, numInterests, capsuleDim)
+  private val capsuleNet = new CapsuleNetwork(embedDim, numInterests, capsuleDim,3, device)
   register_module("capsuleNet", capsuleNet)
 
   // MLP
@@ -69,11 +69,13 @@ class CapsuleNetwork(
   embedDim: Int,
   numInterests: Int,
   capsuleDim: Int,
-  numRoutings: Int = 3
+  numRoutings: Int = 3,
+  device: String = DeviceSupport.backend
 ) extends Module {
 
   private val inputDim = embedDim
   private val W = new LinearImpl(inputDim, numInterests * capsuleDim)
+  W.to(new Device(device),false)
   register_module("W", W)
 
   def forward(x: Tensor): Tensor = {

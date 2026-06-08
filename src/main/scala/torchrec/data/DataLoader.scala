@@ -20,6 +20,12 @@ class DataLoader(
   device: String = DeviceSupport.backend
 ) extends Iterable[Batch] {
 
+  // Use thread-local device if set (by CTRTrainer/MatchTrainer), otherwise fall back to constructor/device
+  private val effectiveDevice: String = {
+    val threadDevice = torchrec.utils.DataLoaderDevice.get
+    if (threadDevice != null) threadDevice else device
+  }
+
   private var currentIndex = 0
   private val indices = if (shuffle) {
     scala.util.Random.shuffle((0 until dataset.size.toInt).toList)
@@ -133,7 +139,7 @@ class DataLoader(
     import torchrec.Implicits.SeqTensorRichSeq
     import torchrec.Implicits.toTensorVector
 
-    val d = new Device(device)
+    val d = new Device(effectiveDevice)
     def move(t: Tensor): Tensor = t.to(d, t.dtype())
 
     val sparseTensors = sparseBuilder.map { case (name, tensors) =>

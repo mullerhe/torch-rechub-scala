@@ -1,11 +1,11 @@
 package torchrec.models.multi_task
 
-import torchrec.basic.features._
-import torchrec.basic.layers._
+import torchrec.basic.features.*
+import torchrec.basic.layers.*
 import torchrec.utils.DeviceSupport
-
-import org.bytedeco.pytorch._
+import org.bytedeco.pytorch.*
 import org.bytedeco.pytorch.global.torch
+import org.bytedeco.pytorch.global.torch.ScalarType
 
 /**
  * Adversarial Information Transfer Multi-Task
@@ -38,7 +38,8 @@ class AITM(
 
   // Information transfer gates (learnable task interaction)
   private val transferGates = taskNames.map { name =>
-    val gate = new LinearImpl(hiddenDim, hiddenDim)
+    val gate:LinearImpl = new LinearImpl(hiddenDim.toLong, hiddenDim.toLong)
+    gate.to(new Device(device),false)
     register_module(s"gate_$name", gate)
     (name, gate)
   }.toMap

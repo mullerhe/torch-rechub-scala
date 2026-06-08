@@ -31,6 +31,7 @@ class NARM(
   register_module("attention", attention)
 
   private val output = new LinearImpl(hiddenDim * 2, embedDim)
+  output.to(new Device(device),false)
   register_module("output", output)
 
   def forward(sequence: Tensor): Tensor = {

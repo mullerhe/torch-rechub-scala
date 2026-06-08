@@ -18,6 +18,13 @@ import torchrec.models.ranking.AFM
 import torchrec.models.ranking.WideDeep
 import torchrec.models.ranking.DIN
 import torchrec.models.ranking.BST
+import torchrec.models.ranking.SIM
+import torchrec.models.ranking.ETA
+import torchrec.models.ranking.MEMBA
+import torchrec.models.ranking.XGBoostModel
+import torchrec.models.ranking.LiquidNetWork
+import torchrec.models.generative.LLM4Rec
+import torchrec.models.matching.MAMBA
 import torchrec.basic.losses.{BCELoss, BCEWithLogitsLoss}
 
 /**
@@ -47,6 +54,9 @@ class CTRTrainer(
     for (epoch <- 0 until numEpochs) {
       var totalLoss = 0.0f
       var numBatches = 0
+
+      // Ensure DataLoader device matches model device to avoid cross-device tensor issues
+      torchrec.utils.DataLoaderDevice.set(device)
 
       val iter = trainLoader.iterator
       while (iter.hasNext) {
@@ -120,6 +130,82 @@ class CTRTrainer(
               val seqFeats = batch.sequenceFeatures
               if (seqFeats.nonEmpty) {
                 val pred = bst.forward(features, seqFeats)
+                val batchSize = pred.size(0).toInt
+                val target2D = labels.view(batchSize, 1).toType(ScalarType.Float)
+                val loss = bceLoss.apply(pred, target2D)
+                loss.backward(); optimizer.step()
+                totalLoss += loss.item().toFloat; numBatches += 1
+              }
+
+            case sim: SIM =>
+              val seqFeats = batch.sequenceFeatures
+              if (seqFeats.nonEmpty) {
+                // Use same sequence features for item, category, and time
+                val pred = sim.forward(features, seqFeats, seqFeats, seqFeats, seqFeats)
+                val batchSize = pred.size(0).toInt
+                val target2D = labels.view(batchSize, 1).toType(ScalarType.Float)
+                val loss = bceLoss.apply(pred, target2D)
+                loss.backward(); optimizer.step()
+                totalLoss += loss.item().toFloat; numBatches += 1
+              }
+
+            case eta: ETA =>
+              val seqFeats = batch.sequenceFeatures
+              if (seqFeats.nonEmpty) {
+                val pred = eta.forward(features, seqFeats, seqFeats)
+                val batchSize = pred.size(0).toInt
+                val target2D = labels.view(batchSize, 1).toType(ScalarType.Float)
+                val loss = bceLoss.apply(pred, target2D)
+                loss.backward(); optimizer.step()
+                totalLoss += loss.item().toFloat; numBatches += 1
+              }
+
+            case membrana: MEMBA =>
+              val seqFeats = batch.sequenceFeatures
+              if (seqFeats.nonEmpty) {
+                val targetIdx = labels.view(labels.size(0), 1).toType(ScalarType.Long)
+                val pred = membrana.forward(features, seqFeats, targetIdx)
+                val batchSize = pred.size(0).toInt
+                val target2D = labels.view(batchSize, 1).toType(ScalarType.Float)
+                val loss = bceLoss.apply(pred, target2D)
+                loss.backward(); optimizer.step()
+                totalLoss += loss.item().toFloat; numBatches += 1
+                targetIdx.close()
+              }
+
+            case xgb: XGBoostModel =>
+              val pred = xgb.forward(features)
+              val batchSize = pred.size(0).toInt
+              val target2D = labels.view(batchSize, 1).toType(ScalarType.Float)
+              val loss = bceLoss.apply(pred, target2D)
+              loss.backward(); optimizer.step()
+              totalLoss += loss.item().toFloat; numBatches += 1
+
+            case lnw: LiquidNetWork =>
+              val seqFeats = batch.sequenceFeatures
+              if (seqFeats.nonEmpty) {
+                val pred = lnw.forward(features, seqFeats)
+                val batchSize = pred.size(0).toInt
+                val target2D = labels.view(batchSize, 1).toType(ScalarType.Float)
+                val loss = bceLoss.apply(pred, target2D)
+                loss.backward(); optimizer.step()
+                totalLoss += loss.item().toFloat; numBatches += 1
+              }
+
+            case llm4rec: LLM4Rec =>
+              val tokensOpt = batch.tokens
+              val positionsOpt = batch.positions
+              if (tokensOpt.nonEmpty) {
+                val tokens = tokensOpt.get
+                val positions = positionsOpt.getOrElse {
+                  val seqLen = tokens.size(1).toInt
+                  val posArr = Array.range(0, seqLen).map(_.toFloat)
+                  val posFlat = Array.fill(tokens.size(0).toInt)(posArr).flatten
+                  TorchRec.arange(0, seqLen).toType(ScalarType.Long)
+                    .unsqueeze(0)
+                    .repeat(tokens.size(0), 1)
+                }
+                val pred = llm4rec.forward(tokens, positions)
                 val batchSize = pred.size(0).toInt
                 val target2D = labels.view(batchSize, 1).toType(ScalarType.Float)
                 val loss = bceLoss.apply(pred, target2D)
@@ -233,6 +319,75 @@ class CTRTrainer(
           case bst: BST =>
             if (seqFeats.nonEmpty) {
               val pred = bst.forward(features, seqFeats).sigmoid()
+              val predHost = pred.squeeze().to(ScalarType.Float).contiguous().cpu()
+              val labelHost = label.squeeze().to(ScalarType.Float).contiguous().cpu()
+              predList.appendAll(predHost.toFloatArray)
+              labelList.appendAll(labelHost.toFloatArray)
+              predHost.close(); labelHost.close()
+            }
+
+          case sim: SIM =>
+            if (seqFeats.nonEmpty) {
+              val pred = sim.forward(features, seqFeats, seqFeats, seqFeats, seqFeats).sigmoid()
+              val predHost = pred.squeeze().to(ScalarType.Float).contiguous().cpu()
+              val labelHost = label.squeeze().to(ScalarType.Float).contiguous().cpu()
+              predList.appendAll(predHost.toFloatArray)
+              labelList.appendAll(labelHost.toFloatArray)
+              predHost.close(); labelHost.close()
+            }
+
+          case eta: ETA =>
+            if (seqFeats.nonEmpty) {
+              val pred = eta.forward(features, seqFeats, seqFeats).sigmoid()
+              val predHost = pred.squeeze().to(ScalarType.Float).contiguous().cpu()
+              val labelHost = label.squeeze().to(ScalarType.Float).contiguous().cpu()
+              predList.appendAll(predHost.toFloatArray)
+              labelList.appendAll(labelHost.toFloatArray)
+              predHost.close(); labelHost.close()
+            }
+
+          case membrana: MEMBA =>
+            if (seqFeats.nonEmpty) {
+              val targetIdx = label.view(label.size(0), 1).toType(ScalarType.Long)
+              val pred = membrana.forward(features, seqFeats, targetIdx).sigmoid()
+              val predHost = pred.squeeze().to(ScalarType.Float).contiguous().cpu()
+              val labelHost = label.squeeze().to(ScalarType.Float).contiguous().cpu()
+              predList.appendAll(predHost.toFloatArray)
+              labelList.appendAll(labelHost.toFloatArray)
+              predHost.close(); labelHost.close()
+              targetIdx.close()
+            }
+
+          case xgb: XGBoostModel =>
+            val pred = xgb.forward(features).sigmoid()
+            val predHost = pred.squeeze().to(ScalarType.Float).contiguous().cpu()
+            val labelHost = label.squeeze().to(ScalarType.Float).contiguous().cpu()
+            predList.appendAll(predHost.toFloatArray)
+            labelList.appendAll(labelHost.toFloatArray)
+            predHost.close(); labelHost.close()
+
+          case lnw: LiquidNetWork =>
+            if (seqFeats.nonEmpty) {
+              val pred = lnw.forward(features, seqFeats).sigmoid()
+              val predHost = pred.squeeze().to(ScalarType.Float).contiguous().cpu()
+              val labelHost = label.squeeze().to(ScalarType.Float).contiguous().cpu()
+              predList.appendAll(predHost.toFloatArray)
+              labelList.appendAll(labelHost.toFloatArray)
+              predHost.close(); labelHost.close()
+            }
+
+          case llm4rec: LLM4Rec =>
+            val tokensOpt = batch.tokens
+            val positionsOpt = batch.positions
+            if (tokensOpt.nonEmpty) {
+              val tokens = tokensOpt.get
+              val positions = positionsOpt.getOrElse {
+                val seqLen = tokens.size(1).toInt
+                TorchRec.arange(0, seqLen).toType(ScalarType.Long)
+                  .unsqueeze(0)
+                  .repeat(tokens.size(0), 1)
+              }
+              val pred = llm4rec.forward(tokens, positions).sigmoid()
               val predHost = pred.squeeze().to(ScalarType.Float).contiguous().cpu()
               val labelHost = label.squeeze().to(ScalarType.Float).contiguous().cpu()
               predList.appendAll(predHost.toFloatArray)

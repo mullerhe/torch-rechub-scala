@@ -90,6 +90,7 @@ class MultiHeadSelfAttention(
     key.to(dev, false)
     value.to(dev, false)
     output.to(dev, false)
+    dropoutLayer.to(dev, false)
   }
 
   def forward(x: Tensor): Tensor = {

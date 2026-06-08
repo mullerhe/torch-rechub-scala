@@ -13,6 +13,7 @@ import scala.collection.mutable
 
 import torchrec.basic.losses.BPRLoss
 import torchrec.utils.DeviceSupport
+import torchrec.TorchRec
 
 /**
  * Trainer for matching/retrieval models
@@ -42,6 +43,9 @@ class MatchTrainer(
     for (epoch <- 0 until numEpochs) {
       var totalLoss = 0.0f
       var numBatches = 0
+
+      // Ensure DataLoader device matches model device to avoid cross-device tensor issues
+      torchrec.utils.DataLoaderDevice.set(device)
 
       val iter = trainLoader.iterator
       while (iter.hasNext) {
@@ -95,6 +99,56 @@ class MatchTrainer(
               } else {
                 numBatches += 1
               }
+            case mamba: MAMBA =>
+              val batchSize = userFeats.values.head.size(0).toInt
+              if (batchSize > 1) {
+                // MAMBA takes tokens and positions as input
+                val tokensOpt = batch.tokens
+                val positionsOpt = batch.positions
+                if (tokensOpt.nonEmpty) {
+                  val tokens = tokensOpt.get
+                  val positions = positionsOpt.getOrElse {
+                    TorchRec.arange(0, tokens.size(1).toInt).toType(ScalarType.Long)
+                      .unsqueeze(0)
+                      .repeat(tokens.size(0), 1)
+                  }
+                  val userEmb = mamba.forward(tokens, positions)
+                  // For matching, use the output as a proxy for user embedding
+                  // Create pseudo item embeddings (zero) for BPR loss
+                  val itemEmb = torch.zeros_like(userEmb)
+                  val posScores = userEmb.mul(itemEmb).sum(1)
+                  var lossTensor: Tensor = null.asInstanceOf[Tensor]
+                  var pairCount = 0
+                  for (i <- 0 until batchSize) {
+                    val userVec = userEmb.select(0, i)
+                    val posScoreI = posScores.select(0, i)
+                    for (j <- 0 until batchSize if j != i) {
+                      val negItemVec = itemEmb.select(0, j)
+                      val negScoreIJ = userVec.mul(negItemVec).sum(0).reshape(1)
+                      val pairLoss = bprLoss.apply(posScoreI.reshape(1), negScoreIJ)
+                      if (lossTensor == null) {
+                        lossTensor = pairLoss
+                      } else {
+                        lossTensor = lossTensor.add(pairLoss)
+                      }
+                      pairCount += 1
+                    }
+                  }
+                  if (lossTensor != null && pairCount > 0) {
+                    val avgLossTensor = lossTensor.div(new Scalar(pairCount.toDouble))
+                    avgLossTensor.backward()
+                    optimizer.step()
+                    totalLoss += avgLossTensor.item().toFloat
+                  }
+                  numBatches += 1
+                  if (lossTensor != null) lossTensor.close()
+                } else {
+                  numBatches += 1
+                }
+              } else {
+                numBatches += 1
+              }
+
             case _ =>
             // Skip unknown model types
           }
@@ -142,6 +196,8 @@ class MatchTrainer(
       mode match {
         case "user" =>
           val userFeats = batch.sparseFeatures
+          val tokensOpt = batch.tokens
+          val positionsOpt = batch.positions
           (model, userFeats.get("history")) match {
             case (dssm: DSSM, _) =>
               embeddings += dssm.userTowerForward(userFeats)
@@ -150,6 +206,14 @@ class MatchTrainer(
               embeddings += yt.userTowerForward(sparseOnly, Map("history" -> history))
             case (yt: YoutubeDNN, None) =>
               embeddings += yt.userTowerForward(userFeats)
+            case (mamba: MAMBA, _) if tokensOpt.nonEmpty =>
+              val tokens = tokensOpt.get
+              val positions = positionsOpt.getOrElse {
+                TorchRec.arange(0, tokens.size(1).toInt).toType(ScalarType.Long)
+                  .unsqueeze(0)
+                  .repeat(tokens.size(0), 1)
+              }
+              embeddings += mamba.forward(tokens, positions)
             case _ =>
           }
         case "item" =>
@@ -215,6 +279,33 @@ class MatchTrainer(
                 hitRateMetric.update(scoreSlice, labelArr)
                 ndcgMetric.update(scoreSlice, labelArr)
                 mrrMetric.update(scoreSlice, labelArr)
+              }
+            case mamba: MAMBA =>
+              val tokensOpt = batch.tokens
+              val positionsOpt = batch.positions
+              if (tokensOpt.nonEmpty) {
+                val tokens = tokensOpt.get
+                val positions = positionsOpt.getOrElse {
+                  TorchRec.arange(0, tokens.size(1).toInt).toType(ScalarType.Long)
+                    .unsqueeze(0)
+                    .repeat(tokens.size(0), 1)
+                }
+                val userEmb = mamba.forward(tokens, positions)
+                val itemEmb = torch.zeros_like(userEmb)
+                val allScores = torch.matmul(userEmb, itemEmb.t())
+                val scoresHost = allScores.to(ScalarType.Float).contiguous().cpu()
+                val scoreArr = scoresHost.toFloatArray
+                allScores.close()
+                scoresHost.close()
+
+                for (i <- 0 until batchSize) {
+                  val rowOffset = i * batchSize
+                  val labelArr = Array.tabulate[Float](batchSize)(j => if (j == i) 1.0f else 0.0f)
+                  val scoreSlice = scoreArr.slice(rowOffset, rowOffset + batchSize)
+                  hitRateMetric.update(scoreSlice, labelArr)
+                  ndcgMetric.update(scoreSlice, labelArr)
+                  mrrMetric.update(scoreSlice, labelArr)
+                }
               }
             case _ =>
           }

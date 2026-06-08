@@ -6,6 +6,7 @@ import torchrec.utils.DeviceSupport
 
 import org.bytedeco.pytorch._
 import org.bytedeco.pytorch.global.torch
+import org.bytedeco.pytorch.global.torch.ScalarType
 
 import torchrec.Implicits._
 import torchrec.TensorImplicits._
@@ -76,7 +77,7 @@ class DynamicRouter(
     val batchSize = x.size(0).toInt
 
     // Initialize interest capsules
-    var capsules = torch.randn(batchSize, numInterests, embedDim).mul(new Scalar(0.1f))
+    var capsules = torch.randn(batchSize, numInterests, embedDim).mul(new Scalar(0.1f)).to(x.device(), org.bytedeco.pytorch.global.torch.ScalarType.Float)
 
     var weightedItems: Tensor = capsules
     for (r <- 0 until numRoutings) {

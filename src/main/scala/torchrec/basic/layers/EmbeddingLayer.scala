@@ -81,14 +81,16 @@ class EmbeddingLayer(
 
     // Process sparse features
     sparseFeats.foreach { case (name, indices) =>
-      embeddingTables.get(name).foreach { embed =>
-        val embedDev = embed.weight().device()
+      // First try exact match, then try with _seq suffix (for sequence features passed as sparse)
+      val embed = embeddingTables.get(name).orElse(embeddingTables.get(s"${name}_seq"))
+      embed.foreach { e =>
+        val embedDev = e.weight().device()
         val idxOnDev = if (indices.device().equals(embedDev)) {
           indices.toType(ScalarType.Long)
         } else {
           indices.toType(ScalarType.Long).to(embedDev, ScalarType.Long)
         }
-        embeddingList += embed.forward(idxOnDev)
+        embeddingList += e.forward(idxOnDev)
       }
     }
 
@@ -115,6 +117,10 @@ class EmbeddingLayer(
     }
 
     if (embeddingList.isEmpty) {
+      // Debug: print what keys are available
+      println(s"[DEBUG] embeddingTables keys: ${embeddingTables.keys.mkString(", ")}")
+      println(s"[DEBUG] sparseFeats keys: ${sparseFeats.keys.mkString(", ")}")
+      println(s"[DEBUG] sequenceFeats keys: ${sequenceFeats.keys.mkString(", ")}")
       throw new IllegalArgumentException("No embeddings found for given features")
     }
 

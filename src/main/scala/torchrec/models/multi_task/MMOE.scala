@@ -38,6 +38,7 @@ class MMOE(
   // Task gates
   private val gates = taskNames.map { name =>
     val gate = new LinearImpl(embedDim, numExperts)
+    gate.to(new Device(device),false)
     register_module(s"gate_$name", gate)
     (name, gate)
   }.toMap

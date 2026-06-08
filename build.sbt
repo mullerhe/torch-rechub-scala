@@ -2,7 +2,7 @@
 // Scala 3 Recommendation System Framework using JavaCPP-PyTorch
 
 ThisBuild / scalaVersion := "3.8.3"
-ThisBuild / version := "0.1.0-SNAPSHOT"
+ThisBuild / version := "0.1.0"
 ThisBuild / organization := "torchrec"
 scalacOptions += "-experimental"
 fork := true
@@ -19,6 +19,25 @@ lazy val currentPlatformClassifier = {
     if (arch.contains("aarch64") || arch.contains("arm64")) "windows-arm64" else "windows-x86_64"
   } else "linux-x86_64"
 }
+
+ThisBuild / organization := "io.github.mullerhai"
+
+// Fix java-output-version for Test configuration (sbt-typelevel defaults to 8)
+Test / scalacOptions ~= (_.filterNot(s => s == "8" || s.startsWith("-java-output-version")) ++ Seq("-java-output-version:17"))
+ThisBuild / organizationName := "mullerhai"
+ThisBuild / startYear := Some(2025)
+ThisBuild / licenses := Seq(License.Apache2)
+ThisBuild / developers := List(
+  Developer("mullerhai", "muller", "hai710459649@foxmail.com", url("https://github.com/mullerhe"))
+)
+
+// Sonatype / Maven Central publishing (sbt-sonatype)
+//ThisBuild / tlSonatypeUseLegacyHost := false
+//sonatypeCredentialHost := sonatypeCentralHost
+ThisBuild / publishTo := Some("s01.oss.sonatype.org" at "https://s01.oss.sonatype.org/service/local")
+publishMavenStyle := true
+pomIncludeRepository := { _ => false }
+
 //ThisBuild / javaOutputVersion := Some("21")
 
 //val pytorchVersion = "2.12.0-1.5.14-SNAPSHOT"
@@ -207,3 +226,8 @@ libraryDependencies ++= Seq(
 //
 //
 //)
+
+// Assembly merge strategy for JavaCPP/PyTorch jars
+assemblyMergeStrategy := {
+  case _ => sbtassembly.MergeStrategy.first
+}

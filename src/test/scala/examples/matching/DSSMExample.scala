@@ -1,13 +1,12 @@
 package examples.matching
 
-import torchrec.Implicits._
-import torchrec.data._
-import torchrec.models.matching._
-import torchrec.trainers._
+import torchrec.Implicits.*
+import torchrec.data.*
+import torchrec.models.matching.*
+import torchrec.trainers.*
 import torchrec.basic.features.SparseFeature
 import torchrec.utils.DeviceSupport
-
-import org.bytedeco.pytorch._
+import org.bytedeco.pytorch.*
 import org.bytedeco.pytorch.global.torch
 
 /**

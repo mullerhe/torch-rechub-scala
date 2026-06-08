@@ -1,13 +1,12 @@
 package examples.generative
 
-import torchrec.Implicits._
-import torchrec.data._
-import torchrec.models.generative._
-import torchrec.trainers._
-import torchrec.basic.features._
+import torchrec.Implicits.*
+import torchrec.data.*
+import torchrec.models.generative.*
+import torchrec.trainers.*
+import torchrec.basic.features.*
 import torchrec.utils.DeviceSupport
-
-import org.bytedeco.pytorch._
+import org.bytedeco.pytorch.*
 import org.bytedeco.pytorch.global.torch
 
 /**

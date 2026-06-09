@@ -153,6 +153,52 @@ object Implicits {
           result
       }
     }
+
+    def toLongArray: Array[Long] = {
+      // Move to CPU if on a different device (e.g., CUDA)
+      val cpuTensor = try {
+        if (tensor.is_cuda()) {
+          tensor.cpu()
+        } else {
+          tensor
+        }
+      } catch {
+        case _: Exception =>
+          try {
+            tensor.to(new Device("cpu"), tensor.dtype())
+          } catch {
+            case _: Exception => tensor
+          }
+      }
+
+      val contig = if (cpuTensor.is_contiguous()) cpuTensor else cpuTensor.contiguous()
+      val size = contig.numel().toInt
+      if (size == 0) return Array.empty[Long]
+      try {
+        val ptr = contig.data_ptr()
+        val buf = ptr.asByteBuffer()
+        buf.limit(size * 8)
+        val longBuf = buf.asLongBuffer()
+        val result = new Array[Long](size)
+        var i = 0
+        while (i < size) {
+          result(i) = longBuf.get(i)
+          i += 1
+        }
+        result
+      } catch {
+        case _: Exception =>
+          // Fallback: reshape to 1-D and read scalars
+          val flat = contig.reshape(size.toLong)
+          val result = new Array[Long](size)
+          var i = 0
+          while (i < size) {
+            result(i) = flat.select(0, i).itemSafe().toLong
+            i += 1
+          }
+          result
+      }
+    }
   }
 
   implicit class SeqTensorRichSeq(val tensors: Seq[Tensor]) extends AnyVal {

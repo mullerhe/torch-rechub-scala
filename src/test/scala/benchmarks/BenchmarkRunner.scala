@@ -72,7 +72,12 @@ object BenchmarkRunner {
 //    results += runLiquidNetWorkBenchmark()
 
     // Ranking benchmarks
-
+    // AliExpress dataset benchmarks with specific models
+    results += runXGBoostAliExpressBenchmark()
+    System.gc()
+    results += runMAMBAAiExpressBenchmark()
+    System.gc()
+    results += runAliExpressBenchmark()
     System.gc()
  
 //    
@@ -149,17 +154,17 @@ object BenchmarkRunner {
 
 
     results += runLLM4RecBenchmark()
+    System.gc()
     results += runHLLMBenchmark()
     System.gc()
     results += runHSTUBenchmark()
+    System.gc()
     results += runRQVAEBenchmark()
+    System.gc()
     results += runTIGERBenchmark()
     System.gc()
 
-    // AliExpress dataset benchmarks with specific models
-    results += runXGBoostAliExpressBenchmark()
-    results += runMAMBAAiExpressBenchmark()
-    results += runAliExpressBenchmark()
+
 
     // Print summary
     printResults(results.toList)

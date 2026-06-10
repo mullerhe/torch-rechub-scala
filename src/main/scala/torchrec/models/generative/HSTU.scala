@@ -50,6 +50,7 @@ class HSTU(
   register_module("outputProj", outputProj)
 
   private val layernorm = new LayerNormImpl(new LongVector(embedDim.toLong))
+  layernorm.to(new Device(device),false)
   register_module("layernorm", layernorm)
 
   private val dropoutLayer = new DropoutImpl(dropout)
@@ -108,6 +109,8 @@ class HSTULayer(
   // SiLU activation
   private val layernorm1 = new LayerNormImpl(new LongVector(embedDim.toLong))
   private val layernorm2 = new LayerNormImpl(new LongVector(embedDim.toLong))
+  layernorm1.to(new Device(device),false)
+  layernorm2.to(new Device(device),false)
   register_module("layernorm1", layernorm1)
   register_module("layernorm2", layernorm2)
 

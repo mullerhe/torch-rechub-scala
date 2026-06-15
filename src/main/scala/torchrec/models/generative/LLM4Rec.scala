@@ -70,7 +70,7 @@ class LLM4Rec(
   register_module("preNorm", preNorm)
 
   private val dropoutLayer = new DropoutImpl(dropout)
-  private val mlp = new MLP(embedDim, mlpDims, 1, "relu", dropout, false, false, device)
+  private val mlp = new MLP(embedDim, mlpDims, 1, "relu", dropout, false, false,true, device)
 
   register_module("dropout", dropoutLayer)
   register_module("mlp", mlp)

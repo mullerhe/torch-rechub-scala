@@ -73,12 +73,12 @@ object BenchmarkRunner {
 
     // Ranking benchmarks
     // AliExpress dataset benchmarks with specific models
-    results += runXGBoostAliExpressBenchmark()
-    System.gc()
-    results += runMAMBAAiExpressBenchmark()
-    System.gc()
-    results += runAliExpressBenchmark()
-    System.gc()
+//    results += runXGBoostAliExpressBenchmark()
+//    System.gc()
+//    results += runMAMBAAiExpressBenchmark()
+//    System.gc()
+//    results += runAliExpressBenchmark()
+//    System.gc()
  
 //    
     results += runAFMBenchmark()

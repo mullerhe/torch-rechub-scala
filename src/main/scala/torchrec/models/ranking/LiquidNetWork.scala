@@ -35,7 +35,7 @@ class LiquidNetWork(
   // 维度
   private val sparseDim = features.size * embedDim
   private val mlpInputDim = sparseDim + embedDim
-  private val mlp = new MLP(mlpInputDim, mlpDims, 1, "relu", dropout, false, false, device)
+  private val mlp = new MLP(mlpInputDim, mlpDims, 1, "relu", dropout, false, false, true, device)
   register_module("mlp", mlp)
 
   // ===========================================================================

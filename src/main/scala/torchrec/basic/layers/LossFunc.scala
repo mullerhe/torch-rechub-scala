@@ -143,23 +143,6 @@ class HingeLoss(margin: Float = 2.0f, numItems: Option[Long] = None) extends Mod
 }
 
 /**
- * Bayesian Personalized Ranking (BPR) Loss.
- */
-class BPRLoss extends Module {
-
-  def forward(posScore: Tensor, negScore: Tensor, inBatchNeg: Boolean = false): Tensor = {
-    val posFlat = posScore.view(-1)
-    val diff = if (negScore.dim() == 1L) {
-      posFlat.sub(negScore)
-    } else {
-      posFlat.view(-1, 1).sub(negScore)
-    }
-    torch.sigmoid(diff.negative()).log().mean()
-//    (- diff.sigmoid()).log().mean()
-  }
-}
-
-/**
  * Noise Contrastive Estimation (NCE) loss for recommender systems.
  *
  * @param temperature Temperature for scaling logits (default: 1.0)
@@ -167,47 +150,37 @@ class BPRLoss extends Module {
  * @param reduction Reduction applied to output: 'mean', 'sum', or 'none' (default: 'mean')
  */
 class NCELoss(
-  temperature: Float = 1.0f,
-  ignoreIndex: Long = 0L,
-  reduction: String = "mean"
-) extends Module {
-
+               temperature: Float = 1.0f,
+               ignoreIndex: Long = 0L,
+               reduction: String = "mean"
+             ) extends Module {
   def forward(logits: Tensor, targets: Tensor): Tensor = {
-    // Scale logits by temperature
-    val scaledLogits =  logits.div(new Scalar(temperature) )
-
-    // Compute log softmax
+    val scaledLogits = logits.div(new Scalar(temperature))
     val logProbs = torch.log_softmax(scaledLogits, -1)
-
-    // Get log probability of target class
     val batchSize = targets.size(0).toInt
-    val batchIndices = torch.arange(new Scalar(batchSize.toLong), new TensorOptions().dtype(new ScalarTypeOptional(ScalarType.Long)))
 
-    // Use select-based indexing instead of fancy indexing
-    var targetLogProbsArr = new Array[Float](batchSize)
-    for (i <- 0 until batchSize) {
-      val idx = batchIndices.select(0, i.toLong)
-      val targetIdx = targets.select(0, i.toLong)
-      targetLogProbsArr(i) = logProbs.select(0, i.toLong).select(0, targetIdx.item().toLong()).item().toFloat()
-    }
-    var lossTensor = torch.tensor(targetLogProbsArr*).neg()
-
-    // Create mask for ignore_index
     var lossSum = 0.0f
     var lossCount = 0
     for (i <- 0 until batchSize) {
+      val targetIdx = targets.select(0, i.toLong).item().toLong()
+      val lp = logProbs.select(0, i.toLong).select(0, targetIdx).item().toFloat()
       val targetVal = targets.select(0, i.toLong).item().toLong()
       if (targetVal != ignoreIndex) {
-        lossSum += targetLogProbsArr(i)
+        lossSum -= lp
         lossCount += 1
       }
     }
 
-    // Apply reduction
     reduction match {
-      case "mean" => torch.tensor(Array(lossSum / lossCount)*)
-      case "sum" => torch.tensor(Array(lossSum)*)
-      case _ => lossTensor
+      case "mean" => torch.tensor(Array(if(lossCount == 0) 0f else lossSum / lossCount)*)
+      case "sum"  => torch.tensor(Array(lossSum)*)
+      case _ =>
+        val arr = Array.tabulate(batchSize) { i =>
+          val t = targets.select(0, i).item().toLong()
+          val lp = logProbs.select(0,i).select(0,t).item().toFloat()
+          if(t == ignoreIndex) 0f else -lp
+        }
+        torch.tensor(arr*)
     }
   }
 }
@@ -220,44 +193,55 @@ class NCELoss(
  * @param reduction Reduction applied to output: 'mean', 'sum', or 'none' (default: 'mean')
  */
 class InBatchNCELoss(
-  temperature: Float = 0.1f,
-  ignoreIndex: Long = 0L,
-  reduction: String = "mean"
-) extends Module {
-
+                      temperature: Float = 0.1f,
+                      ignoreIndex: Long = 0L,
+                      reduction: String = "mean"
+                    ) extends Module {
   def forward(embeddings: Tensor, itemEmbeddings: Tensor, targets: Tensor): Tensor = {
-    // Compute logits: (batch_size, vocab_size)
-    val logits = torch.matmul(embeddings, itemEmbeddings.t()).div(new Scalar(temperature)) 
-
-    // Compute log softmax
+    val logits = torch.matmul(embeddings, itemEmbeddings.t()).div(new Scalar(temperature))
     val logProbs = torch.log_softmax(logits, -1)
-
-    // Get log probability of target class
     val batchSize = targets.size(0).toInt
 
-    var targetLogProbsArr = new Array[Float](batchSize)
-    for (i <- 0 until batchSize) {
-      val targetIdx = targets.select(0, i.toLong).item().toLong()
-      targetLogProbsArr(i) = logProbs.select(0, i.toLong).select(0, targetIdx).item().toFloat()
-    }
-    var lossTensor = torch.tensor(targetLogProbsArr*).neg()
-
-    // Apply mask for ignore_index and compute loss
     var lossSum = 0.0f
     var lossCount = 0
     for (i <- 0 until batchSize) {
+      val targetIdx = targets.select(0, i.toLong).item().toLong()
+      val lp = logProbs.select(0, i.toLong).select(0, targetIdx).item().toFloat()
       val targetVal = targets.select(0, i.toLong).item().toLong()
       if (targetVal != ignoreIndex) {
-        lossSum += targetLogProbsArr(i)
+        lossSum -= lp
         lossCount += 1
       }
     }
 
-    // Apply reduction
     reduction match {
-      case "mean" => torch.tensor(Array(lossSum / lossCount)*)
-      case "sum" => torch.tensor(Array(lossSum)*)
-      case _ => lossTensor
+      case "mean" => torch.tensor(Array(if(lossCount == 0) 0f else lossSum / lossCount)*)
+      case "sum"  => torch.tensor(Array(lossSum)*)
+      case _ =>
+        val arr = Array.tabulate(batchSize) { i =>
+          val t = targets.select(0, i).item().toLong()
+          val lp = logProbs.select(0,i).select(0,t).item().toFloat()
+          if(t == ignoreIndex) 0f else -lp
+        }
+        torch.tensor(arr*)
     }
+  }
+}
+
+/**
+ * Bayesian Personalized Ranking (BPR) Loss.
+ */
+class BPRLoss extends Module {
+
+  def forward(posScore: Tensor, negScore: Tensor, inBatchNeg: Boolean = false): Tensor = {
+    val posFlat = posScore.view(-1)
+    val diff = if (negScore.dim() == 1L) {
+      posFlat.sub(negScore)
+    } else {
+      posFlat.view(-1, 1).sub(negScore)
+    }
+    // 用 .neg() 代替 - 运算符，纯API
+    torch.sigmoid(diff).log().mean().neg()
+//    (- diff.sigmoid()).log().mean()
   }
 }

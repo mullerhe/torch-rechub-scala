@@ -19,12 +19,20 @@ trait EmbeddingInitializer {
     new EmbeddingImpl(options)
   }
 
+  protected def setPaddingZero2(embed: EmbeddingImpl, paddingIdx: Option[Long]): Unit = {
+    paddingIdx.foreach { idx =>
+      val weight = embed.weight()
+      // 等价 weight[padding_idx, :] = 0
+      val idxTensor = torch.tensor(Array(idx), new TensorOptions().dtype(new ScalarTypeOptional(ScalarType.Long)))
+      weight.index_fill_(0, idxTensor, new Scalar(0f))
+    }
+  }
   protected def setPaddingZero(embed: EmbeddingImpl, paddingIdx: Option[Long]): Unit = {
     paddingIdx.foreach { idx =>
       val weight = embed.weight()
       val embedDim = embed.options().embedding_dim().get()// weight.size(1)
       val zeroRow = torch.zeros(Array(embedDim), new TensorOptions().dtype(new ScalarTypeOptional(ScalarType.Float)))
-      weight.index_copy_(0, torch.tensor(Array(idx), new TensorOptions().dtype(new ScalarTypeOptional(ScalarType.Long))), zeroRow)
+//      weight.index_copy_(0, torch.tensor(Array(idx), new TensorOptions().dtype(new ScalarTypeOptional(ScalarType.Long))), zeroRow) //todo need update
     }
   }
 }
@@ -38,7 +46,12 @@ trait EmbeddingInitializer {
 case class RandomNormal(mean: Float = 0.0f, std: Float = 1.0f) extends EmbeddingInitializer {
   override def apply(vocabSize: Long, embedDim: Long, paddingIdx: Option[Long] = None): EmbeddingImpl = {
     val embed = createEmbedding(vocabSize, embedDim, paddingIdx)
-    embed.weight().normal_(mean, std, new GeneratorOptional())
+//    embed.weight().normal_(mean, std, new GeneratorOptional())
+//    val weight = embed.weight().requires_grad_()
+//    // 新建临时张量做原地初始化，规避叶子参数in-place报错
+//    val temp = torch.empty_like(weight)
+    torch.normal_(embed.weight(),mean, std)
+//    weight.copy_(temp)
     setPaddingZero(embed, paddingIdx)
     embed
   }
@@ -53,7 +66,12 @@ case class RandomNormal(mean: Float = 0.0f, std: Float = 1.0f) extends Embedding
 case class RandomUniform(minval: Float = 0.0f, maxval: Float = 1.0f) extends EmbeddingInitializer {
   override def apply(vocabSize: Long, embedDim: Long, paddingIdx: Option[Long] = None): EmbeddingImpl = {
     val embed = createEmbedding(vocabSize, embedDim, paddingIdx)
-    embed.weight().uniform_(minval, maxval, new GeneratorOptional())
+//    embed.weight().uniform_(minval, maxval, new GeneratorOptional())
+//    val weight = embed.weight()
+    // 新建临时张量做原地初始化，规避叶子参数in-place报错
+//    val temp = torch.empty_like(weight)
+    torch.uniform_(embed.weight(),minval, maxval)
+//    weight.copy_(temp)
     setPaddingZero(embed, paddingIdx)
     embed
   }
@@ -75,7 +93,7 @@ case class XavierNormal(gain: Float = 1.0f) extends EmbeddingInitializer {
     val fanIn = vocabSize
     val fanOut = embedDim
     val std = gain * math.sqrt(2.0 / (fanIn + fanOut)).toFloat
-    weight.normal_(0.0f, std, new GeneratorOptional())
+    torch.normal_(embed.weight(),0.0f, std)
     setPaddingZero(embed, paddingIdx)
     embed
   }
@@ -98,7 +116,7 @@ case class XavierUniform(gain: Float = 1.0f) extends EmbeddingInitializer {
     val fanIn = vocabSize
     val fanOut = embedDim
     val bound = gain * math.sqrt(6.0 / (fanIn + fanOut)).toFloat
-    weight.uniform_(-bound, bound, new GeneratorOptional())
+    torch.uniform_(embed.weight(),-bound, bound)
     setPaddingZero(embed, paddingIdx)
     embed
   }

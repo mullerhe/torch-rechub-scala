@@ -69,7 +69,7 @@ object BenchmarkRunner {
     // Run all benchmarks
     val results = mutable.ListBuffer[BenchmarkResult]()
 
-//    results += runLiquidNetWorkBenchmark()
+    results += runLiquidNetWorkBenchmark()
 
     // Ranking benchmarks
     // AliExpress dataset benchmarks with specific models

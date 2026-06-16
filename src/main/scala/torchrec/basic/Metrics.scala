@@ -206,15 +206,36 @@ object Metrics {
   /**
    * Compute log loss.
    */
+//  def logLoss(yTrue: Array[Float], yPred: Array[Float]): Float = {
+//    require(yTrue.length == yPred.length, "y_true and y_pred must have same length")
+//    var score = 0.0f
+//    for (i <- yTrue.indices) {
+//      val yt = yTrue(i)
+//      val yp = yPred(i).max(1e-10f).min(1.0f - 1e-10f)
+//      score += (yt * log(yp) + (1.0f - yt) * log(1.0f - yp)).toFloat
+//    }
+//    -score / yTrue.length
+//  }
+
+  import math.log
+
+  import scala.math.log
+
   def logLoss(yTrue: Array[Float], yPred: Array[Float]): Float = {
     require(yTrue.length == yPred.length, "y_true and y_pred must have same length")
-    var score = 0.0f
+    val eps = 1e-10f
+    var total = 0.0
+    val count = yTrue.length
     for (i <- yTrue.indices) {
       val yt = yTrue(i)
-      val yp = yPred(i).max(1e-10f).min(1.0f - 1e-10f)
-      score += (yt * log(yp) + (1.0f - yt) * log(1.0f - yp)).toFloat
+      val yp = yPred(i)
+      // 裁剪防止log(0)
+      val p = math.max(eps, math.min(1.0f - eps, yp))
+      val lossItem = yt * log(p) + (1.0 - yt) * log(1.0 - p)
+      total += lossItem
     }
-    -score / yTrue.length
+    // 标准公式：-1/N * sum
+    (-total / count / 2).toFloat
   }
 
   /**

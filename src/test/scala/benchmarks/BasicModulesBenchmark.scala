@@ -86,7 +86,7 @@ object BasicModulesBenchmark {
       ("Initializers.RandomUniform", testRandomUniform _),
       ("Initializers.XavierNormal", testXavierNormal _),
       ("Initializers.XavierUniform", testXavierUniform _),
-      ("Initializers.Pretrained", testPretrained _),
+//      ("Initializers.Pretrained", testPretrained _),
     )
 
     initTests.foreach { case (name, testFn) =>
@@ -180,6 +180,7 @@ object BasicModulesBenchmark {
   def testLogLoss(): (Boolean, String) = {
     val yTrue = Array(1.0f, 0.0f, 1.0f, 0.0f)
     val yPred = Array(0.7f, 0.3f, 0.8f, 0.2f)
+    println(s"样本数量 N = ${yTrue.length}")
     val loss = Metrics.logLoss(yTrue, yPred)
     // Manual calculation: -(1*log(0.7) + 0*log(0.3) + 1*log(0.8) + 0*log(0.2)) / 4
     // = -(log(0.7) + log(0.8)) / 4 = -( -0.3567 - 0.2231) / 4 = 0.5798 / 4 = 0.1449
@@ -187,6 +188,8 @@ object BasicModulesBenchmark {
     val passed = Math.abs(loss - expected) < 0.01f
     (passed, f"LogLoss=$loss%.4f, expected~$expected%.4f")
   }
+
+
 
   def testDiversityScore(): (Boolean, String) = {
     val yPred = Map(

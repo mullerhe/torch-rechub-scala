@@ -86,16 +86,19 @@ object MovieLensSeqExample {
 
       case "hllm" =>
         val frozenEmbeddings = torch.randn(effectiveVocabSize, embedDim)
-        val userFeatures = List(
-          SparseFeature(name = "feat_0", vocabSize = 50, embedDim = embedDim)
-        )
         new HLLM(
           itemEmbeddings = frozenEmbeddings,
-          features = userFeatures,
-          embedDim = embedDim,
-          numHeads = numHeads,
-          numLayers = numLayers,
+          vocabSize = effectiveVocabSize,
+          dModel = embedDim,
+          nHeads = numHeads,
+          nLayers = numLayers,
+          maxSeqLen = maxSeqLen,
           dropout = dropout,
+          useRelPosBias = true,
+          useTimeEmbedding = true,
+          numTimeBuckets = 2048,
+          timeBucketFn = "sqrt",
+          temperature = 0.07f,
           device = device
         )
 

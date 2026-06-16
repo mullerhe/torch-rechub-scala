@@ -70,9 +70,9 @@ object BenchmarkRunner {
     val results = mutable.ListBuffer[BenchmarkResult]()
 
 
-//    results += runLLM4RecBenchmark()
-//    System.gc()
-//    results += runHLLMBenchmark()
+    results += runLLM4RecBenchmark()
+    System.gc()
+    results += runHLLMBenchmark()
     System.gc()
     results += runHSTUBenchmark()
     System.gc()
@@ -80,8 +80,8 @@ object BenchmarkRunner {
     System.gc()
     results += runTIGERBenchmark()
     System.gc()
-    
-    
+
+
     results += runLiquidNetWorkBenchmark()
 
     // Ranking benchmarks
@@ -92,8 +92,8 @@ object BenchmarkRunner {
 //    System.gc()
 //    results += runAliExpressBenchmark()
 //    System.gc()
- 
-//    
+
+//
     results += runAFMBenchmark()
     results += runAFNBenchmark()
     results += runAutoIntBenchmark()
@@ -1547,7 +1547,8 @@ object BenchmarkRunner {
 
     val features = List(SparseFeature("user_id", vocabSize, config.embedDim))
     val sequenceFeatures = List(SequenceFeature("seq_feat", vocabSize, config.embedDim, maxLen = seqLen))
-
+    // ✅ 修复 2：单独为双塔结构准备 item 特征
+    val itemFeatures = List(SparseFeature("item_id", vocabSize, config.embedDim))
     val model: Module = config.modelName match {
       case "ComirecDR" =>
         new ComirecDR(
@@ -1571,13 +1572,26 @@ object BenchmarkRunner {
         )
       case "GRU4Rec" =>
         new GRU4Rec(
-          features = features,
-          embedDim = config.embedDim,
-          hiddenDim = 8,
-          numLayers = 2,
-          dropout = 0.1f,
+          userFeatures = features,
+          historyFeatures = sequenceFeatures,
+          itemFeatures = itemFeatures,
+          negItemFeature = None,
+          userParams = Map(
+            "num_layers" -> 2,
+            "dropout" -> 0.1f,
+            "dims" -> List(config.embedDim * 2L, config.embedDim.toLong) // 适配 MLP 输出维度
+          ),
+          temperature = 1.0f,
           device = config.device
         )
+//        new GRU4Rec(
+//          features = features,
+//          embedDim = config.embedDim,
+//          hiddenDim = 8,
+//          numLayers = 2,
+//          dropout = 0.1f,
+//          device = config.device
+//        )
       case "MIND" =>
         new MIND(
           features = features,
@@ -1634,7 +1648,15 @@ object BenchmarkRunner {
           device = config.device
         )
       case _ =>
-        new GRU4Rec(features, config.embedDim, 8, 2, 0.1f, config.device)
+        new GRU4Rec(
+          userFeatures = features,
+          historyFeatures = sequenceFeatures,
+          itemFeatures = itemFeatures,
+          negItemFeature = None,
+          userParams = Map("num_layers" -> 2, "dropout" -> 0.1f),
+          device = config.device
+        )
+//        new GRU4Rec(features, config.embedDim, 8, 2, 0.1f, config.device)
     }
 
     val startTime = System.currentTimeMillis()
@@ -1887,10 +1909,12 @@ object BenchmarkRunner {
       case "HLLM" =>
         new HLLM(
           itemEmbeddings = itemEmbeddings,
-          features = features,
-          embedDim = config.embedDim,
-          numHeads = 2,
-          numLayers = 2,
+          vocabSize = vocabSize,
+          dModel = config.embedDim,
+//          features = features,
+//          embedDim = config.embedDim,
+          nHeads = 2,
+          nLayers = 2,
           dropout = 0.2f,
           device = config.device
         )
@@ -1922,7 +1946,16 @@ object BenchmarkRunner {
           device = config.device
         )
       case _ =>
-        new HLLM(itemEmbeddings, features, config.embedDim, 2, 2, 0.2f, config.device)
+        new HSTU(
+          vocabSize = vocabSize.toLong,
+          //          embedDim = config.embedDim,
+          //          numHeads = 2,
+          //          numLayers = 2,
+          maxSeqLen = seqLen,
+          dropout = 0.2f,
+          device = config.device
+        )
+//        new HLLM(itemEmbeddings, features, config.embedDim, 2, 2, 0.2f, config.device)
     }
 
     val startTime = System.currentTimeMillis()

@@ -76,9 +76,9 @@ object MovieLensSeqExample {
       case "hstu" | "hstu_model" =>
         new HSTU(
           vocabSize = effectiveVocabSize,
-          embedDim = embedDim,
-          numHeads = numHeads,
-          numLayers = numLayers,
+//          embedDim = embedDim,
+//          numHeads = numHeads,
+//          numLayers = numLayers,
           maxSeqLen = maxSeqLen,
           dropout = dropout,
           device = device
@@ -103,9 +103,9 @@ object MovieLensSeqExample {
         println(s"  Warning: Unknown model '$modelName', defaulting to HSTU")
         new HSTU(
           vocabSize = effectiveVocabSize,
-          embedDim = embedDim,
-          numHeads = numHeads,
-          numLayers = numLayers,
+//          embedDim = embedDim,
+//          numHeads = numHeads,
+//          numLayers = numLayers,
           maxSeqLen = maxSeqLen,
           dropout = dropout,
           device = device

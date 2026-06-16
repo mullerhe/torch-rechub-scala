@@ -69,6 +69,19 @@ object BenchmarkRunner {
     // Run all benchmarks
     val results = mutable.ListBuffer[BenchmarkResult]()
 
+
+//    results += runLLM4RecBenchmark()
+//    System.gc()
+//    results += runHLLMBenchmark()
+    System.gc()
+    results += runHSTUBenchmark()
+    System.gc()
+    results += runRQVAEBenchmark()
+    System.gc()
+    results += runTIGERBenchmark()
+    System.gc()
+    
+    
     results += runLiquidNetWorkBenchmark()
 
     // Ranking benchmarks
@@ -153,16 +166,7 @@ object BenchmarkRunner {
     System.gc()
 
 
-    results += runLLM4RecBenchmark()
-    System.gc()
-    results += runHLLMBenchmark()
-    System.gc()
-    results += runHSTUBenchmark()
-    System.gc()
-    results += runRQVAEBenchmark()
-    System.gc()
-    results += runTIGERBenchmark()
-    System.gc()
+
 
 
 
@@ -1893,9 +1897,9 @@ object BenchmarkRunner {
       case "HSTU" =>
         new HSTU(
           vocabSize = vocabSize.toLong,
-          embedDim = config.embedDim,
-          numHeads = 2,
-          numLayers = 2,
+//          embedDim = config.embedDim,
+//          numHeads = 2,
+//          numLayers = 2,
           maxSeqLen = seqLen,
           dropout = 0.2f,
           device = config.device

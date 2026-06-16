@@ -45,8 +45,9 @@ class MLP(
   // Use SequentialImpl like PyTorch's nn.Sequential
   private val sequential = new SequentialImpl()
   private var prevDim = inputDim
-
+  private val layersRef = scala.collection.mutable.ListBuffer[AnyRef]()
   // Build MLP layers using SequentialImpl
+
   hiddenDims.foreach { dim =>
     sequential.push_back(new LinearImpl(prevDim, dim))
 
@@ -71,9 +72,12 @@ class MLP(
 
 //    sequential.push_back(createActivation(activation))
 
-//    if (dropout > 0) {
+    if (dropout > 0) {
+      val dropoutLayer = new DropoutImpl(dropout)
+      layersRef += dropoutLayer
+      sequential.push_back(s"dropout_${layersRef.size}", dropoutLayer)
 //      sequential.push_back(new DropoutImpl(dropout))
-//    }
+    }
 
     prevDim = dim
   }

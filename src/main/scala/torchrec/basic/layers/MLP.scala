@@ -51,7 +51,9 @@ class MLP(
     sequential.push_back(new LinearImpl(prevDim, dim))
 
     if (useLayerNorm) {
-      sequential.push_back(new LayerNormImpl(new LongVector(dim)))
+      val vec = new LongVector(1)
+      vec.put(0, dim)
+      sequential.push_back(new LayerNormImpl(vec))
     } else if (useBatchNorm && !activation.equals("relu")) {
       sequential.push_back(new BatchNorm1dImpl(new BatchNormOptions(dim)))
     }
@@ -69,9 +71,9 @@ class MLP(
 
 //    sequential.push_back(createActivation(activation))
 
-    if (dropout > 0) {
-      sequential.push_back(new DropoutImpl(dropout))
-    }
+//    if (dropout > 0) {
+//      sequential.push_back(new DropoutImpl(dropout))
+//    }
 
     prevDim = dim
   }

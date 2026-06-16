@@ -39,10 +39,11 @@ object LayersBenchmark {
       ("RelativeBucketedTimeAndPositionBias", testRelativeBucketedTimeAndPositionBias _),
 
       ("FFM", testFFM _),
-      ("CEN", testCEN _),
+
       ("HSTULayer", testHSTULayer _),
       ("HSTUBlock", testHSTUBlock _),
-      //      ("CapsuleNetwork", testCapsuleNetwork _),
+      ("CEN", testCEN _),
+            ("CapsuleNetwork", testCapsuleNetwork _),
 
     )
 
@@ -91,6 +92,7 @@ object LayersBenchmark {
     val flat = arr.flatten.flatten
     tensor(flat, Array(b.toLong, s.toLong, d.toLong))
   }
+
 
   // Helper to create 4D tensor from Array[Array[Array[Array[Float]]]]
   def tensor4d(arr: Array[Array[Array[Array[Float]]]]): Tensor = {
@@ -155,8 +157,9 @@ object LayersBenchmark {
     val layer = new BiLinearInteractionLayer(8, 4, "field_interaction", device)
     val input = tensor3d(Array.fill(4, 4, 8)(1.0f))
     val out = layer.forward(input)
-    val passed = out.dim() == 2L && out.size(0) == 4L
-    (passed, f"output shape: ${out.size(0)}x${out.size(1)}")
+    // Output: (batch, num_interactions=6, embed_dim=8)
+    val passed = out.dim() == 3L && out.size(0) == 4L && out.size(1) == 6L && out.size(2) == 8L
+    (passed, f"output shape: ${out.size(0)}x${out.size(1)}x${out.size(2)}")
   }
 
   def testMultiInterestSA(device: String): (Boolean, String) = {
@@ -179,17 +182,31 @@ object LayersBenchmark {
 
   def testFFM(device: String): (Boolean, String) = {
     val layer = new FFM(4, reduceSum = true, device)
-    val input = tensor4d(Array.fill(4, 4, 4, 8)(1.0f))
+    // Input: (batch=4, num_fields=4, embed_dim=8)
+    val input = tensor3d(Array.fill(4, 4, 8)(1.0f))
     val out = layer.forward(input)
-    val passed = out.dim() == 3L && out.size(0) == 4L
-    (passed, f"output shape: ${out.size(0)}x${out.size(1)}x${out.size(2)}")
+    // Output with reduceSum=true: (batch, num_interactions=6, embed_dim=8) -> sum along last dim -> (batch, 6)
+    val passed = out.dim() == 2L && out.size(0) == 4L && out.size(1) == 6L
+    (passed, f"output shape: ${out.size(0)}x${out.size(1)}")
   }
 
+  def testCENs(device: String): (Boolean, String) = {
+    val layer = new CEN(8, 6, 2, device)
+    // em shape [B=4, numFieldCrosses=6, embedDim=8] 完全匹配Python输入要求
+    val input = tensor3d(Array.fill(4, 6, 8)(1.0f))
+    val out = layer.forward(input)
+    // output [4, 6*8=48]
+    println(out.sizes().vec().get().mkString(","))
+    val passed = out.dim() == 2L && out.size(0) == 4L && out.size(1) == 48L
+    (passed, f"output shape: ${out.size(0)}x${out.size(1)} * ${out.size(2)}")
+  }
   def testCEN(device: String): (Boolean, String) = {
     val layer = new CEN(8, 6, 2, device)
-    val input = tensor4d(Array.fill(4, 6, 6, 8)(1.0f))
+    // Input: (batch=4, num_field_crosses=6, embed_dim=8)
+    val input = tensor3d(Array.fill(4, 6, 8)(1.0f))
     val out = layer.forward(input)
-    val passed = out.dim() == 2L && out.size(0) == 4L
+    // Output: (batch, num_field_crosses * embed_dim) = (4, 48)
+    val passed = out.dim() == 2L && out.size(0) == 4L && out.size(1) == 48L
     (passed, f"output shape: ${out.size(0)}x${out.size(1)}")
   }
 

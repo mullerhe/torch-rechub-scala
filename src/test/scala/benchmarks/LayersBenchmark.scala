@@ -43,7 +43,7 @@ object LayersBenchmark {
       ("HSTULayer", testHSTULayer _),
       ("HSTUBlock", testHSTUBlock _),
       ("CEN", testCEN _),
-            ("CapsuleNetwork", testCapsuleNetwork _),
+      ("CapsuleNetwork", testCapsuleNetwork _),
 
     )
 
@@ -200,6 +200,7 @@ object LayersBenchmark {
     val passed = out.dim() == 2L && out.size(0) == 4L && out.size(1) == 48L
     (passed, f"output shape: ${out.size(0)}x${out.size(1)} * ${out.size(2)}")
   }
+
   def testCEN(device: String): (Boolean, String) = {
     val layer = new CEN(8, 6, 2, device)
     // Input: (batch=4, num_field_crosses=6, embed_dim=8)

@@ -34,15 +34,15 @@ import scala.collection.mutable
  * Benchmark result for risk control models
  */
 case class RiskControlBenchmarkResult(
-  name: String,
-  category: String,  // "DeepLearning", "GraphNN", "LLM", "FullPipeline"
-  passed: Boolean,
-  metric: String,
-  value: Double,
-  trainingTimeMs: Double,
-  memoryMb: Double,
-  error: Option[String] = None
-)
+                                       name: String,
+                                       category: String, // "DeepLearning", "GraphNN", "LLM", "FullPipeline"
+                                       passed: Boolean,
+                                       metric: String,
+                                       value: Double,
+                                       trainingTimeMs: Double,
+                                       memoryMb: Double,
+                                       error: Option[String] = None
+                                     )
 
 /**
  * Risk Control Benchmark Suite
@@ -824,7 +824,7 @@ object RiskControlBenchmark {
       val positions = TorchRec.arange(0, seqLen).repeat(batchSize, 1).to(DeviceSupport.backend).toType(ScalarType.Long)
       val timeDiffs = torch.rand(batchSize.toLong, seqLen.toLong).to(DeviceSupport.backend).mul(new Scalar(512.0f)).toType(ScalarType.Long)
 
-      val model =         new HSTU(
+      val model = new HSTU(
         vocabSize = vocabSize.toLong,
         //          embedDim = config.embedDim,
         //          numHeads = 2,
@@ -833,13 +833,13 @@ object RiskControlBenchmark {
         dropout = 0.2f,
         device = DeviceSupport.backend
       )
-//      val model = new HSTU(vocabSize, embedDim, numHeads, numLayers, seqLen, 0.1f, DeviceSupport.backend)
+      //      val model = new HSTU(vocabSize, embedDim, numHeads, numLayers, seqLen, 0.1f, DeviceSupport.backend)
 
       val startTime = System.nanoTime()
       var numIterations = 0
 
       while (numIterations < 5) {
-//        val output = model.forward(tokens, positions, timeDiffs)
+        //        val output = model.forward(tokens, positions, timeDiffs)
         val output = model.forward(tokens, timeDiffs)
         numIterations += 1
       }

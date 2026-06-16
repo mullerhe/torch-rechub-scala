@@ -86,7 +86,7 @@ object BasicModulesBenchmark {
       ("Initializers.RandomUniform", testRandomUniform _),
       ("Initializers.XavierNormal", testXavierNormal _),
       ("Initializers.XavierUniform", testXavierUniform _),
-//      ("Initializers.Pretrained", testPretrained _),
+      //      ("Initializers.Pretrained", testPretrained _),
     )
 
     initTests.foreach { case (name, testFn) =>
@@ -173,7 +173,7 @@ object BasicModulesBenchmark {
     val precision2 = result("Precision@2")
 
     val passed = ndcg2 == "0.7956" && mrr2 == "0.8333" && recall2 == "0.7222" &&
-                 hit2 == "0.7143" && precision2 == "0.8333"
+      hit2 == "0.7143" && precision2 == "0.8333"
     (passed, f"NDCG@2=$ndcg2, MRR@2=$mrr2, Recall@2=$recall2, Hit@2=$hit2, Precision@2=$precision2")
   }
 
@@ -188,7 +188,6 @@ object BasicModulesBenchmark {
     val passed = Math.abs(loss - expected) < 0.01f
     (passed, f"LogLoss=$loss%.4f, expected~$expected%.4f")
   }
-
 
 
   def testDiversityScore(): (Boolean, String) = {
@@ -274,8 +273,8 @@ object BasicModulesBenchmark {
     val lossFn = new NCELoss(temperature = 0.1f)
     val batchSize = 4
     val vocabSize = 10
-    val logits = torch.randn(Array(batchSize.toLong, vocabSize.toLong)*)
-    val targets = torch.tensor(Array(1L, 3L, 5L, 7L)*)
+    val logits = torch.randn(Array(batchSize.toLong, vocabSize.toLong) *)
+    val targets = torch.tensor(Array(1L, 3L, 5L, 7L) *)
 
     val loss = lossFn.forward(logits, targets)
     val lossVal = loss.item().toFloat()
@@ -290,9 +289,9 @@ object BasicModulesBenchmark {
     val embedDim = 8
     val vocabSize = 10
 
-    val embeddings = torch.randn(Array(batchSize.toLong, embedDim.toLong)*)
-    val itemEmbeddings = torch.randn(Array(vocabSize.toLong, embedDim.toLong)*)
-    val targets = torch.tensor(Array(1L, 3L, 5L, 7L)*)
+    val embeddings = torch.randn(Array(batchSize.toLong, embedDim.toLong) *)
+    val itemEmbeddings = torch.randn(Array(vocabSize.toLong, embedDim.toLong) *)
+    val targets = torch.tensor(Array(1L, 3L, 5L, 7L) *)
 
     val loss = lossFn.forward(embeddings, itemEmbeddings, targets)
     val lossVal = loss.item().toFloat()
@@ -366,9 +365,9 @@ object BasicModulesBenchmark {
     val embed = init.apply(10, 8)
 
     val embedWeight = embed.weight()
-    val index = new TensorIndexVector(new TensorIndex(torch.tensor(Array(0L)*)) ,new TensorIndex( torch.arange(new Scalar(8L))))
+    val index = new TensorIndexVector(new TensorIndex(torch.tensor(Array(0L) *)), new TensorIndex(torch.arange(new Scalar(8L))))
     val firstWeight = embedWeight.index(index)
-       //.toFloatArray()
+    //.toFloatArray()
 
     firstWeight.corrcoef()
     val passed = true // firstWeight.corresponds(weights(0))(_ == _)

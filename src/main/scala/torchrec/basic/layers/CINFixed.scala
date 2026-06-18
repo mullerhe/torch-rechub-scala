@@ -58,17 +58,19 @@ class CINFixed(
     // embeddings: (batch, num_fields, embed_dim)
     val batchSize = embeddings.size(0)
 
-    // x0: (batch, num_fields, embed_dim)
+    // x0: original embeddings (stays constant throughout all layers)
+    // hk: output of previous layer (transposed)
     val x0 = embeddings
-    // h1: (batch, embed_dim, num_fields)
-    var hk = x0.transpose(1, 2)
+    var hk = x0.transpose(1, 2)  // (batch, embed_dim, num_fields) for first iteration
 
     val outputs = collection.mutable.ListBuffer[Tensor]()
     var prevOutDim = numFields
 
     for (i <- crossLayerSizes.indices) {
-      // Outer product of x0 and hk along field dimension
-      // x0 (batch, F, D) with hk^T (batch, D, F) -> (batch, F, F)
+      // Outer product of x0 (original embeddings) and hk (previous layer output)
+      // x0: (batch, F, D) where F=num_fields, D=embed_dim (constant)
+      // hk: (batch, D_prev, F) where D_prev is output dim of previous layer
+      // Result: (batch, F, F)
       val xh = torch.bmm(x0, hk.transpose(1, 2))
       // Flatten: (batch, F * prev_out_dim)
       val flat = xh.view(batchSize, numFields * prevOutDim)
@@ -88,15 +90,17 @@ class CINFixed(
       val pooled = convOut.sum(1).unsqueeze(1)  // (batch, 1)
       outputs += pooled
 
-      // Prepare hk for next layer: (batch, next_dim, num_fields)
+      // Prepare hk for next layer using convOut output
+      // x0 stays as original embeddings, only hk changes
       if (i < crossLayerSizes.length - 1 || splitHalf) {
         val half = if (splitHalf && convOut.size(1) > actualNextDim) {
           convOut.narrow(1, 0, actualNextDim)
         } else {
           convOut
         }
-        // Repeat for each field: (batch, actual_next_dim, num_fields)
-        hk = half.unsqueeze(2).repeat(1, 1, numFields)
+        // Reshape: (batch, actual_next_dim) -> (batch, num_fields, actual_next_dim)
+        // Then transpose: (batch, actual_next_dim, num_fields)
+        hk = half.view(batchSize, numFields, actualNextDim).transpose(1, 2)
       }
 
       prevOutDim = actualNextDim

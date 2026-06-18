@@ -53,9 +53,9 @@ class DeepFM(
     sparseFeats: Map[String, Tensor],
     denseFeats: Map[String, Tensor] = Map.empty
   ): Tensor = {
-    // Get 3D embeddings for all features: (batch, num_fields, embed_dim)
-    val allEmbeddings = embeddingLayer.forward(sparseFeats, squeeze = false)
-    val batchSize = allEmbeddings.size(0)
+    // Get 3D embeddings for all features using forward3D: (batch, num_fields, embed_dim)
+    val allEmbeddings = embeddingLayer.forward3D(sparseFeats, sequenceFeats = Map.empty)
+    val batchSize = allEmbeddings.size(0).toInt
 
     // Split embeddings into deep and fm parts
     val numDeepFeatures = deepFeatures.size

@@ -142,7 +142,15 @@ object RiskControlBenchmark {
       )
 
       // Create model
-      val model = new DeepFM(features, embedDim, List(128L, 64L), 0.2f, DeviceSupport.backend)
+      val halfIdx = features.size / 2
+      val model = new DeepFM(
+        deepFeatures = features.take(halfIdx),
+        fmFeatures = features.drop(halfIdx),
+        embedDim = embedDim,
+        mlpDims = List(128L, 64L),
+        dropout = 0.2f,
+        device = DeviceSupport.backend
+      )
 
       // Training
       val trainLoader = new DataLoader(trainData, batchSize, shuffle = true)
@@ -545,7 +553,16 @@ object RiskControlBenchmark {
         SparseFeature("feat_4", DEFAULT_VOCAB_SIZE, embedDim)
       )
 
-      val model = new AutoInt(features, embedDim, 8, 3, List(128L, 64L), 0.2f, DeviceSupport.backend)
+      val model = new AutoInt(
+        sparseFeatures = features,
+        embedDim = embedDim,
+        numAttnHeads = 8,
+        numLayers = 3,
+        mlpDims = List(128L, 64L),
+        dropout = 0.2f,
+        useMlp = true,
+        device = DeviceSupport.backend
+      )
 
       val trainLoader = new DataLoader(trainData, batchSize, shuffle = true)
       val criterion = new BCELoss()
@@ -979,7 +996,17 @@ object RiskControlBenchmark {
         SparseFeature("item_id", 500, 8),
         SparseFeature("category", 20, 8)
       )
-      val model = new DeepFM(features, 8, List(128L, 64L), 0.2f, DeviceSupport.backend)
+      val model = {
+        val halfIdx = features.size / 2
+        new DeepFM(
+          deepFeatures = features.take(halfIdx),
+          fmFeatures = features.drop(halfIdx),
+          embedDim = 8,
+          mlpDims = List(128L, 64L),
+          dropout = 0.2f,
+          device = DeviceSupport.backend
+        )
+      }
 
       // Training loop
       var numBatches = 0

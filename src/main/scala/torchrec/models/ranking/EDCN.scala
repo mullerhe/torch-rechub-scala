@@ -141,10 +141,10 @@ class BridgeModule(
   device: String = DeviceSupport.backend
 ) extends Module {
 
-  require(
-    List("hadamard_product", "pointwise_addition", "concatenation", "attention_pooling").contains(bridgeType),
-    s"bridgeType '$bridgeType' not supported. Must be one of: hadamard_product, pointwise_addition, concatenation, attention_pooling"
-  )
+//  require(
+//    List("hadamard_product", "pointwise_addition", "concatenation", "attention_pooling").contains(bridgeType),
+//    s"bridgeType '$bridgeType' not supported. Must be one of: hadamard_product, pointwise_addition, concatenation, attention_pooling"
+//  )
 
   val bridgeTypeName: String = bridgeType
 

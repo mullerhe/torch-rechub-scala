@@ -58,40 +58,24 @@ class AFM(
   private val attentionLiner = new LinearImpl(embedDim, attentionDim)
   register_module("attention_liner", attentionLiner)
 
-  // 论文公式中的h: (attentionDim, 1)
+  // 论文公式中的h: (attentionDim, 1) - 直接使用 torch.tensor 创建并注册为 parameter
   private val h = {
-    val opts = new TensorOptions().dtype(new ScalarTypeOptional(ScalarType.Float))
-    val arr = new Array[Float](attentionDim * 1)
-    // Xavier uniform initialization
     val std = math.sqrt(6.0 / (attentionDim + 1)).toFloat
     val random = new java.util.Random(42)
-    var i = 0
-    while (i < arr.length) {
-      arr(i) = (random.nextFloat() * 2 - 1) * std
-      i += 1
-    }
-    val t = torch.tensor(arr*).view( Array(attentionDim.toLong, 1L)*).to(ScalarType.Float)
-    val p = new Tensor()
-    p.copy_(t)
-    register_parameter("h", p)
-    p
+    val arr = Array.fill(attentionDim * 1) { (random.nextFloat() * 2 - 1) * std }
+    val t = torch.tensor(arr*).view(Array(attentionDim.toLong, 1L)*).to(ScalarType.Float)
+    register_parameter("h", t)
+    t
   }
 
-  // 论文公式中的p: (embed_dim, 1)
+  // 论文公式中的p: (embed_dim, 1) - 直接使用 torch.tensor 创建并注册为 parameter
   private val p = {
     val std = math.sqrt(6.0 / (embedDim + 1)).toFloat
     val random = new java.util.Random(42)
-    val arr = new Array[Float](embedDim * 1)
-    var i = 0
-    while (i < arr.length) {
-      arr(i) = (random.nextFloat() * 2 - 1) * std
-      i += 1
-    }
+    val arr = Array.fill(embedDim * 1) { (random.nextFloat() * 2 - 1) * std }
     val t = torch.tensor(arr*).view(Array(embedDim.toLong, 1L)*).to(ScalarType.Float)
-    val param = new Tensor()
-    param.copy_(t)
-    register_parameter("p", param)
-    param
+    register_parameter("p", t)
+    t
   }
 
   // Dropout for attention output
@@ -115,8 +99,7 @@ class AFM(
     // relu
     val yRelu = torch.relu(yAtt)
     // matmul(h): (batch, 1)
-    val hTensor = h.to(yFm.device(), ScalarType.Float)
-    val yMatmul = torch.matmul(yRelu, hTensor)
+    val yMatmul = torch.matmul(yRelu, h.to(yFm.device(), ScalarType.Float))
     // softmax(dim=1): (batch, 1)
     val atts = torch.softmax(yMatmul, 1)
     atts
@@ -144,15 +127,10 @@ class AFM(
     val attsDrop = dropoutLayer.forward(atts)
 
     // outs = atts * y_fm @ p: (batch, 1)
-    val yFmDevice = yFm.device()
-    val pTensor = p.to(yFmDevice, ScalarType.Float)
     val weighted = attsDrop.mul(yFm)  // (batch, embed_dim)
-    val outs = torch.matmul(weighted, pTensor)  // (batch, 1)
+    val outs = torch.matmul(weighted, p.to(yFm.device(), ScalarType.Float))  // (batch, 1)
 
-    // Final output: y_linear + outs
-    val y = yLinear.add(outs)
-
-    // Return sigmoid
-    torch.sigmoid(y).squeeze(1)
+    // Final output: y_linear + outs - return logits (BCEWithLogitsLoss applies sigmoid)
+    yLinear.add(outs)
   }
 }

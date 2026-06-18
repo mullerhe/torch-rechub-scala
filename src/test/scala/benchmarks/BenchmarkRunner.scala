@@ -71,25 +71,25 @@ object BenchmarkRunner {
     // Run all benchmarks
     val results = mutable.ListBuffer[BenchmarkResult]()
 
-//    results += runESMMBenchmark()
-//    //    System.gc()
-//    //    results += runMetaHeacBenchmark()
-//    //
-//    results += runMMOEBenchmark()
-//    System.gc()
-//    results += runOMoEBenchmark()
-//    results += runPLEBenchmark()
-//    System.gc()
-//    results += runAITMBenchmark()
-//    //    results += runESMMBenchmark()
-//    System.gc()
-//    results += runMetaHeacBenchmark()
-//    System.gc()
-//    results += runSharedBottomBenchmark()
-//    results += runSingleTaskModelBenchmark()
-//    System.gc()
-//
-//    results += runLiquidNetWorkBenchmark()
+    results += runESMMBenchmark()
+    //    System.gc()
+    //    results += runMetaHeacBenchmark()
+    //
+    results += runMMOEBenchmark()
+    System.gc()
+    results += runOMoEBenchmark()
+    results += runPLEBenchmark()
+    System.gc()
+    results += runAITMBenchmark()
+    //    results += runESMMBenchmark()
+    System.gc()
+    results += runMetaHeacBenchmark()
+    System.gc()
+    results += runSharedBottomBenchmark()
+    results += runSingleTaskModelBenchmark()
+    System.gc()
+
+    results += runLiquidNetWorkBenchmark()
 
     // Ranking benchmarks
     // AliExpress dataset benchmarks with specific models
@@ -102,23 +102,23 @@ object BenchmarkRunner {
 
     //
     System.gc()
-//    results += runAFMBenchmark()
-//
-//    results += runAFNBenchmark() //pass
-//    results += runAutoIntBenchmark() //pass
-//    System.gc()
-//    results += runDCNBenchmark()
-//    results += runDCNv2Benchmark() //pass
-//    System.gc()
-//    results += runDeepFMBenchmark()
-//    results += runEDCNBenchmark()
-//
-//    System.gc()
-//
-//    //    DIEN DIN ETA BST LNN SIM HLLM HSTU RQVAE TIGER
-//    results += runDIENBenchmark() //pass
-//
-//    results += runDINBenchmark() //pass
+    results += runAFMBenchmark()
+
+    results += runAFNBenchmark() //pass
+    results += runAutoIntBenchmark() //pass
+    System.gc()
+    results += runDCNBenchmark()
+    results += runDCNv2Benchmark() //pass
+    System.gc()
+    results += runDeepFMBenchmark()
+    results += runEDCNBenchmark()
+
+    System.gc()
+
+    //    DIEN DIN ETA BST LNN SIM HLLM HSTU RQVAE TIGER
+    results += runDIENBenchmark() //pass
+
+    results += runDINBenchmark() //pass
     results += runETABenchmark() //pass
     System.gc()
     results += runHLLMBenchmark()
@@ -126,71 +126,71 @@ object BenchmarkRunner {
     System.gc()
     results += runHSTUBenchmark()
     results += runBSTBenchmark() //pass
-//    results += runLNNBenchmark() //pass
-//
-//    results += runSIMBenchmark() //pass
-//
-//    System.gc()
-//    results += runFiBiNetBenchmark()
-//    results += runFNFMBenchmark()
-//    results += runFNNBenchmark()
-//    System.gc()
-//    results += runHoFMBenchmark()
-//    results += runLRBenchmark()
-//    results += runMEMBABenchmark()
-//    System.gc()
-//    results += runNFMBenchmark()
-//    results += runPNNBenchmark()
-//    System.gc()
-//
-//    results += runWideDeepBenchmark()
-//    results += runXDeepFMBenchmark()
-//    results += runXGBoostBenchmark()
-//    System.gc()
-//
-//    //     Matching benchmarks ComirecDR ComirecSA GRU4Rec  MIND NARM SASRec SINE STAMP YoutubeDNN
-//    results += runDSSMBenchmark()
-//    results += runMAMBABenchmark()
-//    results += runNCFBenchmark()
-//    System.gc()
-//    results += runComirecDRBenchmark()
-//    results += runComirecSABenchmark()
-//    results += runGRU4RecBenchmark()
-//    System.gc()
-//    results += runMINDBenchmark()
-//    results += runNARMBenchmark()
-//    results += runSASRecBenchmark()
-//    System.gc()
-//    results += runSINEBenchmark()
-//    results += runSTAMPBenchmark()
-//    results += runYoutubeDNNBenchmark()
-//
-//    System.gc()
-//    //     Multi-task benchmarks
-//
-//    results += runAITMBenchmark()
-//    results += runESMMBenchmark()
-//    System.gc()
-//    results += runMetaHeacBenchmark()
-//
-//    results += runMMOEBenchmark()
-//    System.gc()
-//    results += runOMoEBenchmark()
-//    results += runPLEBenchmark()
-//    System.gc()
-//    results += runSharedBottomBenchmark()
-//    results += runSingleTaskModelBenchmark()
-//    System.gc()
-//
-//    results += runLLM4RecBenchmark()
-//    System.gc()
-//    results += runHLLMBenchmark()
-//    System.gc()
-//    results += runHSTUBenchmark()
-//    System.gc()
-//    results += runRQVAEBenchmark()
-//    System.gc()
-//    results += runTIGERBenchmark()
+    results += runLNNBenchmark() //pass
+
+    results += runSIMBenchmark() //pass
+
+    System.gc()
+    results += runFiBiNetBenchmark()
+    results += runFNFMBenchmark()
+    results += runFNNBenchmark()
+    System.gc()
+    results += runHoFMBenchmark()
+    results += runLRBenchmark()
+    results += runMEMBABenchmark()
+    System.gc()
+    results += runNFMBenchmark()
+    results += runPNNBenchmark()
+    System.gc()
+
+    results += runWideDeepBenchmark()
+    results += runXDeepFMBenchmark()
+    results += runXGBoostBenchmark()
+    System.gc()
+
+    //     Matching benchmarks ComirecDR ComirecSA GRU4Rec  MIND NARM SASRec SINE STAMP YoutubeDNN
+    results += runDSSMBenchmark()
+    results += runMAMBABenchmark()
+    results += runNCFBenchmark()
+    System.gc()
+    results += runComirecDRBenchmark()
+    results += runComirecSABenchmark()
+    results += runGRU4RecBenchmark()
+    System.gc()
+    results += runMINDBenchmark()
+    results += runNARMBenchmark()
+    results += runSASRecBenchmark()
+    System.gc()
+    results += runSINEBenchmark()
+    results += runSTAMPBenchmark()
+    results += runYoutubeDNNBenchmark()
+
+    System.gc()
+    //     Multi-task benchmarks
+
+    results += runAITMBenchmark()
+    results += runESMMBenchmark()
+    System.gc()
+    results += runMetaHeacBenchmark()
+
+    results += runMMOEBenchmark()
+    System.gc()
+    results += runOMoEBenchmark()
+    results += runPLEBenchmark()
+    System.gc()
+    results += runSharedBottomBenchmark()
+    results += runSingleTaskModelBenchmark()
+    System.gc()
+
+    results += runLLM4RecBenchmark()
+    System.gc()
+    results += runHLLMBenchmark()
+    System.gc()
+    results += runHSTUBenchmark()
+    System.gc()
+    results += runRQVAEBenchmark()
+    System.gc()
+    results += runTIGERBenchmark()
     System.gc()
 
 

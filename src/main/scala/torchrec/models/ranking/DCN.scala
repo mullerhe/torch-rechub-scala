@@ -33,8 +33,8 @@ class DCN(
   private val mlp = new MLP(sparseDim, mlpDims.map(_.toLong), 1, "relu", dropout, device = device)
   register_module("mlp", mlp)
 
-  // Final combination layer
-  private val combo = new LinearImpl(sparseDim + 1, 1)
+  // Final combination layer: cross output (sparseDim) + MLP last hidden dim
+  private val combo = new LinearImpl(sparseDim + mlpDims.last, 1)
   register_module("combo", combo)
 
   if (device != "cpu") {

@@ -18,7 +18,7 @@ class FiBiNet(
   embedDim: Int = 8,
   mlpDims: List[Long] = List(256L, 128L),
   reduction: Int = 3,
-  bilinearType: String = "field_all",  // "field_all", "field_each", "field_interaction"
+  bilinearType: String = "field_interaction",  // "field_all", "field_each", "field_interaction"
   dropout: Float = 0.2f,
   device: String = DeviceSupport.backend
 ) extends Module {
@@ -26,12 +26,13 @@ class FiBiNet(
   private val embeddingLayer = new EmbeddingLayer(features, embedDim, device)
   register_module("embedding", embeddingLayer)
 
-  private val senet = new SENETLayer(reduction, device)
-  register_module("senet", senet)
-
   private val numFields = features.collect { case f: SparseFeature => 1 }.size
 
-  // Bilinear interaction
+  // SENET layer: takes (num_fields, reduction_ratio) like Python
+  private val senet = new SENETLayer(numFields, reduction, device)
+  register_module("senet", senet)
+
+  // Bilinear interaction layer
   private val bilinear = bilinearType match {
     case "field_all" => new BilinearInteraction(embedDim, numFields, "field_all", device)
     case "field_each" => new BilinearInteraction(embedDim, numFields, "field_each", device)
@@ -39,8 +40,10 @@ class FiBiNet(
   }
   register_module("bilinear", bilinear)
 
-  // MLP
-  private val mlp = new MLP(embedDim * numFields, mlpDims.map(_.toLong), 1, "relu", dropout, device = device)
+  // MLP input dim: num_fields * (num_fields - 1) * embed_dim (for both bi1 and bi2 concatenated)
+  private val numInteractions = numFields * (numFields - 1) / 2
+  private val mlpInputDim = numInteractions * embedDim * 2  // both bi1 and bi2
+  private val mlp = new MLP(mlpInputDim, mlpDims.map(_.toLong), 1, "relu", dropout, device = device)
   register_module("mlp", mlp)
 
   def forward(
@@ -54,13 +57,21 @@ class FiBiNet(
     // SENET-enhanced features
     val senetFeatures = senet.forward(reshaped)
 
-    // Bilinear interactions
-    val biOut = bilinear.forward(senetFeatures, reshaped)
+    // Bilinear interactions on original embeddings: (batch, num_interactions, embed_dim)
+    val biOut1 = bilinear.forward(reshaped, reshaped)
 
-    // Concat bilinear and original, then MLP
-    val tensorList = biOut.toList
-    val combined = torch.cat(new TensorVector(tensorList.map(_.contiguous()): _*), 1L)
-    val logits = mlp.forward(combined)
+    // Bilinear interactions on SENET-enhanced embeddings: (batch, num_interactions, embed_dim)
+    val biOut2 = bilinear.forward(senetFeatures, reshaped)
+
+    // Concatenate both bilinear outputs along dim=1
+    // biOut1 and biOut2 are Seq[Tensor], need to stack then concatenate
+    val stacked1 = torch.stack(new TensorVector(biOut1.toSeq: _*), 1L)
+    val stacked2 = torch.stack(new TensorVector(biOut2.toSeq: _*), 1L)
+    val combined = torch.cat(new TensorVector(stacked1, stacked2), 1L)
+
+    // Flatten and pass through MLP: (batch, num_interactions * 2 * embed_dim)
+    val flattened = combined.view(batchSize, -1)
+    val logits = mlp.forward(flattened)
     logits
   }
 }

@@ -148,6 +148,64 @@ class EmbeddingLayer(
     }
   }
 
+  /**
+   * Forward pass returning 3D tensor (batch, num_fields, embed_dim)
+   * This is needed for models like AFM, AutoInt that require field dimension
+   */
+  def forward3D(
+    sparseFeats: Map[String, Tensor],
+    sequenceFeats: Map[String, Tensor] = Map.empty
+  ): Tensor = {
+    val embeddingList = mutable.ListBuffer[Tensor]()
+
+    // Process sparse features
+    sparseFeats.foreach { case (name, indices) =>
+      val embedKey = s"embed_$name"
+      embeddingTables.get(embedKey).foreach { embed =>
+        val embedDev = embed.weight().device()
+        val idx1d = if (indices.dim() == 2L && indices.size(1) == 1L) {
+          indices.squeeze(1L)
+        } else {
+          indices
+        }
+        val idxOnDev = if (idx1d.device().equals(embedDev)) {
+          idx1d.toType(ScalarType.Long)
+        } else {
+          idx1d.toType(ScalarType.Long).to(embedDev, ScalarType.Long)
+        }
+        val emb = embed.forward(idxOnDev)
+        val emb3d = if (emb.dim() == 2L) emb.unsqueeze(1L) else emb
+        embeddingList += emb3d
+      }
+    }
+
+    // Process sequence features
+    sequenceFeats.foreach { case (name, indices) =>
+      val embedKey = s"embed_seq_$name"
+      embeddingTables.get(embedKey).foreach { embed =>
+        val embedDev = embed.weight().device()
+        val idxOnDev = if (indices.device().equals(embedDev)) {
+          indices.toType(ScalarType.Long)
+        } else {
+          indices.toType(ScalarType.Long).to(embedDev, ScalarType.Long)
+        }
+        val emb = embed.forward(idxOnDev)
+        val pooledEmb = poolSequence(emb, idxOnDev, "mean")
+        val emb3d = if (pooledEmb.dim() == 2L) pooledEmb.unsqueeze(1L) else pooledEmb
+        embeddingList += emb3d
+      }
+    }
+
+    if (embeddingList.isEmpty) {
+      throw new IllegalArgumentException("No embeddings found for given features")
+    }
+
+    // Stack embeddings along field dimension: (batch, num_fields, embed_dim)
+    val embeddingsArr = new Array[Tensor](embeddingList.size)
+    embeddingList.copyToArray(embeddingsArr)
+    torch.cat(new TensorVector(embeddingsArr.toSeq*), 1L)
+  }
+
   private def poolSequence(emb: Tensor, indices: Tensor, pooling: String): Tensor = {
     val padIdx = paddingIdx.getOrElse(0L)
     if (indices.dim() == 1L) {

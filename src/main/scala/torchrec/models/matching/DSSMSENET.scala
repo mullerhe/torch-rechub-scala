@@ -75,15 +75,13 @@ class DSSMSENET(
   // SENET layers for adaptive feature weighting
   // =========================================================================
   private val userSenet = {
-    val s = new SENETLayer(reduction = 3, device = device)
-    s.setInputDim(userNumFeatures.toLong)
+    val s = new SENETLayer(numFields = userNumFeatures, reduction = 3, device = device)
     s
   }
   register_module("user_senet", userSenet)
 
   private val itemSenet = {
-    val s = new SENETLayer(reduction = 3, device = device)
-    s.setInputDim(itemNumFeatures.toLong)
+    val s = new SENETLayer(numFields = itemNumFeatures, reduction = 3, device = device)
     s
   }
   register_module("item_senet", itemSenet)

@@ -257,6 +257,48 @@ class EmbeddingLayer(
     }
   }
 
+  /**
+   * Forward pass for sequence features only, without pooling.
+   * Returns 3D tensor (batch, seqLen, embedDim).
+   * Used by BST model that needs raw sequence embeddings for self-attention.
+   */
+  def forwardSeqRaw(
+    sequenceFeats: Map[String, Tensor]
+  ): Tensor = {
+    val embeddingList = mutable.ListBuffer[Tensor]()
+
+    // Process sequence features without pooling
+    sequenceFeats.foreach { case (name, indices) =>
+      val embedKey = s"embed_seq_$name"
+      embeddingTables.get(embedKey).foreach { embed =>
+        val embedDev = embed.weight().device()
+        val idxOnDev = if (indices.device().equals(embedDev)) {
+          indices.toType(ScalarType.Long)
+        } else {
+          indices.toType(ScalarType.Long).to(embedDev, ScalarType.Long)
+        }
+        val emb = embed.forward(idxOnDev)
+        embeddingList += emb
+      }
+    }
+
+    if (embeddingList.isEmpty) {
+      throw new IllegalArgumentException("No sequence embeddings found for given features")
+    }
+
+    // Stack embeddings along field dimension: (batch, num_features, seqLen, embedDim)
+    // or concatenate if there's only one sequence feature
+    val embeddingsArr = new Array[Tensor](embeddingList.size)
+    embeddingList.copyToArray(embeddingsArr)
+
+    if (embeddingList.size == 1) {
+      embeddingsArr.head
+    } else {
+      // Multiple sequence features: concatenate along field dim, keeping sequence dim
+      torch.cat(new TensorVector(embeddingsArr.toSeq*), 2L)
+    }
+  }
+
   def to(device: String): this.type = {
     this
   }

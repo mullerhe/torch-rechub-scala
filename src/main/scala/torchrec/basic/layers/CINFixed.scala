@@ -71,7 +71,8 @@ class CINFixed(
       // x0: (batch, F, D) where F=num_fields, D=embed_dim (constant)
       // hk: (batch, D_prev, F) where D_prev is output dim of previous layer
       // Result: (batch, F, F)
-      val xh = torch.bmm(x0, hk.transpose(1, 2))
+      // Note: hk is already (batch, D_prev, F), x0 is (batch, F, D), so bmm(x0, hk) works
+      val xh = torch.bmm(x0, hk)
       // Flatten: (batch, F * prev_out_dim)
       val flat = xh.view(batchSize, numFields * prevOutDim)
 

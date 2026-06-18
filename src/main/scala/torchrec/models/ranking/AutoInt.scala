@@ -48,6 +48,7 @@ class AutoInt(
 
   // Attention pooling linear: projects attention output to a scalar
   private val attnLinear = new LinearImpl(dims, 1)
+  attnLinear.to(new org.bytedeco.pytorch.Device(device), false)
   register_module("attn_linear", attnLinear)
 
   // MLP for deep interactions
@@ -61,8 +62,8 @@ class AutoInt(
     sparseFeats: Map[String, Tensor],
     denseFeats: Map[String, Tensor] = Map.empty
   ): Tensor = {
-    // Get sparse embeddings: (batch, numSparse, embedDim)
-    val sparseEmb = embeddingLayer.forward(sparseFeats, squeeze = false)
+    // Get sparse embeddings using forward3D: (batch, numSparse, embedDim)
+    val sparseEmb = embeddingLayer.forward3D(sparseFeats)
 
     // Handle dense features: each dense feature projected via Linear(1, embed_dim)
     // If no dense features, just use sparseEmb

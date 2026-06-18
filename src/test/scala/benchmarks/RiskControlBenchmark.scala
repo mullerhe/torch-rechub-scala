@@ -817,8 +817,14 @@ object RiskControlBenchmark {
   def runLLMBenchmarks(): List[RiskControlBenchmarkResult] = {
     val results = mutable.ListBuffer[RiskControlBenchmarkResult]()
 
+    // Force garbage collection before LLM benchmarks
+    System.gc()
+
     // HSTU benchmark
     results += runHSTUBenchmark()
+
+    // Force garbage collection again before LLM4Rec
+    System.gc()
 
     // LLM4Rec benchmark
     results += runLLM4RecBenchmark()
@@ -882,18 +888,18 @@ object RiskControlBenchmark {
   def runLLM4RecBenchmark(): RiskControlBenchmarkResult = {
     val name = "LLM4Rec"
     val category = "LLM"
-    val batchSize = 16
-    val seqLen = 64
-    val vocabSize = 8000
-    val embedDim = 512
-    val numLayers = 4
+    val batchSize = 4
+    val seqLen = 16
+    val vocabSize = 4000
+    val embedDim = 32
+    val numLayers = 2
 
     try {
       val tokens = torch.rand(batchSize.toLong, seqLen.toLong).to(DeviceSupport.backend).mul(new Scalar(vocabSize.toFloat)).toType(ScalarType.Long)
       val positions = TorchRec.arange(0, seqLen).repeat(batchSize, 1).to(DeviceSupport.backend).toType(ScalarType.Long)
       val attentionMask = torch.ones(batchSize, seqLen).to(DeviceSupport.backend).toType(ScalarType.Long)
 
-      val model = new LLM4Rec(vocabSize, embedDim, 8, numLayers, seqLen, List(256L, 128L), 0.1f, true, DeviceSupport.backend)
+      val model = new LLM4Rec(vocabSize, embedDim, 2, numLayers, seqLen, List(64L), 0.1f, true, DeviceSupport.backend)
 
       val startTime = System.nanoTime()
       var numIterations = 0

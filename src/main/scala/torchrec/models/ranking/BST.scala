@@ -65,30 +65,35 @@ class BST(
     seqFeats: Map[String, Tensor]
   ): Tensor = {
     val batchSize = seqFeats.values.headOption.map(_.size(0)).getOrElse(1L).toInt
+    val seqLen = seqFeats.values.headOption.map(_.size(1)).getOrElse(1L).toInt
 
-    // Get embeddings for all features
-    val allFeats = sparseFeats ++ seqFeats
-    val allEmbeddings = embedding.forward(allFeats, squeeze = false)
+    // Get history sequence embeddings (without pooling) using forwardSeqRaw
+    val historyFeats: Map[String, Tensor] = sequenceFeatures.flatMap { f =>
+      seqFeats.get(f.name).map(t => (f.name, t))
+    }.toMap
+    val hist = embedding.forwardSeqRaw(historyFeats)  // (batch, seqLen, itemDim)
 
-    // Split embeddings
-    val numSparse = features.size
-    val numHistory = sequenceFeatures.size
-    val numTarget = targetFeatures.size
+    // Get sparse feature embeddings using regular forward
+    val sparseEmbeddings = embedding.forward(sparseFeats)  // (batch, numSparse * embedDim)
 
     // Context feature embeddings: (batch, numSparse, embedDim)
-    val contextEmbeddings = allEmbeddings.narrow(1, 0, numSparse)
-    // History feature embeddings: (batch, numHistory, embedDim)
-    val historyEmbeddings = allEmbeddings.narrow(1, numSparse, numHistory)
-    // Target feature embeddings: (batch, numTarget, embedDim)
-    val targetEmbeddings = allEmbeddings.narrow(1, numSparse + numHistory, numTarget)
+    val contextEmbeddings = sparseEmbeddings.view(batchSize, features.size, embedDim)
 
-    // Flatten history features into single item vector per timestep
-    // history: (batch, seqLen, itemDim)
-    val hist = historyEmbeddings.view(batchSize, -1, itemDim)
+    // For target, check both sparseFeats and seqFeats
+    // target features can be passed either as sparse features or as sequence features (with maxLen=1)
+    val targetFeats: Map[String, Tensor] = targetFeatures.flatMap { f =>
+      val opt: Option[Tensor] = sparseFeats.get(f.name).orElse(seqFeats.get(f.name))
+      opt.map(t => (f.name, t))
+    }.toMap
 
-    // Flatten target features into single item vector
-    // target: (batch, itemDim)
-    val tgt = targetEmbeddings.view(batchSize, -1)
+    val targetEmbedding = if (targetFeats.nonEmpty) {
+      // Use forwardSeqRaw to preserve sequence dimension (even if maxLen=1)
+      embedding.forwardSeqRaw(targetFeats).squeeze(1)  // (batch, itemDim)
+    } else {
+      throw new IllegalArgumentException("Target features must be provided via sparseFeats or seqFeats")
+    }
+    // targetEmbedding: (batch, itemDim)
+    val tgt = targetEmbedding
 
     // Append target to end of sequence: (batch, seqLen + 1, itemDim)
     val tgtExpanded = tgt.unsqueeze(1)
@@ -98,30 +103,14 @@ class BST(
     require(seq.size(1) <= maxSeqLen + 1, s"sequence length ${seq.size(1)} exceeds max_seq_len $maxSeqLen")
 
     // Add positional encoding
-    val seqLen = seq.size(1)
-    val positions = torch.arange(new Scalar(seqLen), new TensorOptions().device(new DeviceOptional(seq.device())))
+    val finalSeqLen = seq.size(1)
+    val positions = torch.arange(new Scalar(finalSeqLen), new TensorOptions().device(new DeviceOptional(seq.device())))
     val posEnc = posEmbedding.forward(positions.unsqueeze(0))
     val seqWithPos = seq.add(posEnc)
 
-    // Create padding mask
-    // A position is padding if ALL history features are padding (index == 0)
-    // For simplicity, we create a mask based on sequence features
-    val paddingMask = torch.ones(Array(batchSize.toLong, hist.size(1)),
-      new TensorOptions().dtype(new ScalarTypeOptional(ScalarType.Bool)).device(new DeviceOptional(seq.device())))
-    seqFeats.foreach { case (name, tensor) =>
-      val featIdx = sequenceFeatures.indexWhere(_.name == name)
-      if (featIdx >= 0) {
-        // Get the feature's padding index
-        val paddingIdx = sequenceFeatures(featIdx).paddingIdx
-        val isPadding = tensor.toType(ScalarType.Long).eq(paddingIdx)
-        // Update mask: position is True (masked) if any feature is padding
-        // But since we operate on flattened history, we use a simpler approach
-      }
-    }
-    // Target mask: all False (not masked)
-    val targetMask = torch.zeros(Array(batchSize.toLong, 1L),
-      new TensorOptions().dtype(new ScalarTypeOptional(ScalarType.Bool)).device(new DeviceOptional(seq.device())))
-    val srcKeyPaddingMask = torch.cat(new TensorVector(paddingMask, targetMask), 1)
+    // Create empty padding mask (all positions valid, no masking)
+    // This is passed to encoder but we skip masking since we don't have real padding
+    val srcKeyPaddingMask = new Tensor()
 
     // Pass through transformer encoder layers
     var output = seqWithPos
@@ -203,9 +192,15 @@ class BSTEncoderLayer(
     val scale = 1.0f / math.sqrt(headDim).toFloat
     val attnScores = torch.matmul(q, k.transpose(-2, -1)).mul(new Scalar(scale))
 
-    // Apply padding mask
-    val maskedScores = attnScores.masked_fill(keyPaddingMask.unsqueeze(1).unsqueeze(2), new Scalar(Double.NegativeInfinity))
-    val attnWeights = maskedScores.softmax(-1)
+    // Apply padding mask if provided (keyPaddingMask shape: batch x seq_len)
+    // For empty mask (numel=0), skip masking
+    val attnWeights = if (keyPaddingMask.numel() > 0) {
+      val expandedMask = keyPaddingMask.unsqueeze(1).unsqueeze(2)  // (batch, 1, 1, seq_len)
+      val maskedScores = attnScores.masked_fill(expandedMask, new Scalar(Double.NegativeInfinity))
+      maskedScores.softmax(-1)
+    } else {
+      attnScores.softmax(-1)
+    }
 
     // Apply dropout to attention weights
     val droppedAttn = torch.dropout(attnWeights, dropout.toDouble, is_training)

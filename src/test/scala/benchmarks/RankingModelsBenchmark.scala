@@ -227,19 +227,22 @@ object RankingModelsBenchmark {
   def testBST(device: String): (Boolean, String) = {
     println("\n[BST] Testing...")
 
+    // embedDim must match between BST model and sequence features
+    val embedDim = 8
+
     // Create context features
     val features = (0 until 2).map { i =>
-      SparseFeature(name = s"context_$i", vocabSize = 100, embedDim = 8)
+      SparseFeature(name = s"context_$i", vocabSize = 100, embedDim = embedDim)
     }.toList
 
-    // Create sequence features (history)
+    // Create sequence features (history) - embedDim must match BST's embedDim
     val sequenceFeatures = List(
-      SequenceFeature(name = "hist_seq", vocabSize = 1000, embedDim = 16, maxLen = 50)
+      SequenceFeature(name = "hist_seq", vocabSize = 1000, embedDim = embedDim, maxLen = 50)
     )
 
     // Create target features
     val targetFeatures = List(
-      SequenceFeature(name = "target_item", vocabSize = 1000, embedDim = 16, maxLen = 1)
+      SequenceFeature(name = "target_item", vocabSize = 1000, embedDim = embedDim, maxLen = 1)
     )
 
     // Create model
@@ -247,7 +250,7 @@ object RankingModelsBenchmark {
       features = features,
       sequenceFeatures = sequenceFeatures,
       targetFeatures = targetFeatures,
-      embedDim = 8,
+      embedDim = embedDim,
       numHeads = 4,
       numLayers = 1,
       maxSeqLen = 50,
@@ -264,12 +267,21 @@ object RankingModelsBenchmark {
       f.name -> torch.randint(f.vocabSize.toLong, Array[Long](batchSize, 1L), new TensorOptions())
     }.toMap
 
+    // History sequence features
     val seqFeats = sequenceFeatures.map { f =>
       f.name -> torch.randint(f.vocabSize.toLong, Array[Long](batchSize, seqLen), new TensorOptions())
     }.toMap
 
+    // Target item passed as sequence feature with seqLen=1
+    val targetSeqFeats = targetFeatures.map { f =>
+      f.name -> torch.randint(f.vocabSize.toLong, Array[Long](batchSize, 1L), new TensorOptions())
+    }.toMap
+
+    // Combine sequence and target features
+    val allSeqFeats = seqFeats ++ targetSeqFeats
+
     // Forward pass
-    val output = model.forward(sparseFeats, seqFeats)
+    val output = model.forward(sparseFeats, allSeqFeats)
 
     // Verify output is 1D sigmoid (batch,)
     val passed = output.dim() == 1L &&

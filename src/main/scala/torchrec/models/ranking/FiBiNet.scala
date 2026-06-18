@@ -40,9 +40,14 @@ class FiBiNet(
   }
   register_module("bilinear", bilinear)
 
-  // MLP input dim: num_fields * (num_fields - 1) * embed_dim (for both bi1 and bi2 concatenated)
-  private val numInteractions = numFields * (numFields - 1) / 2
-  private val mlpInputDim = numInteractions * embedDim * 2  // both bi1 and bi2
+  // MLP input dim depends on bilinearType:
+  // - field_all / field_each: numFields^2 * embedDim (all pairs)
+  // - field_interaction: numFields * (numFields-1) / 2 * embedDim (only i<j pairs)
+  private val numFieldPairs = bilinearType match {
+    case "field_all" | "field_each" => numFields * numFields
+    case _ => numFields * (numFields - 1) / 2
+  }
+  private val mlpInputDim = numFieldPairs * embedDim * 2  // both bi1 and bi2
   private val mlp = new MLP(mlpInputDim, mlpDims.map(_.toLong), 1, "relu", dropout, device = device)
   register_module("mlp", mlp)
 
@@ -50,18 +55,17 @@ class FiBiNet(
     sparseFeats: Map[String, Tensor],
     denseFeats: Map[String, Tensor] = Map.empty
   ): Tensor = {
-    val embeddings = embeddingLayer.forward(sparseFeats)
-    val batchSize = embeddings.size(0)
-    val reshaped = embeddings.view(batchSize, numFields, embedDim)
+    // Use forward3D to get (batch, numFields, embedDim)
+    val embeddings = embeddingLayer.forward3D(sparseFeats)
 
     // SENET-enhanced features
-    val senetFeatures = senet.forward(reshaped)
+    val senetFeatures = senet.forward(embeddings)
 
     // Bilinear interactions on original embeddings: (batch, num_interactions, embed_dim)
-    val biOut1 = bilinear.forward(reshaped, reshaped)
+    val biOut1 = bilinear.forward(embeddings, embeddings)
 
     // Bilinear interactions on SENET-enhanced embeddings: (batch, num_interactions, embed_dim)
-    val biOut2 = bilinear.forward(senetFeatures, reshaped)
+    val biOut2 = bilinear.forward(senetFeatures, embeddings)
 
     // Concatenate both bilinear outputs along dim=1
     // biOut1 and biOut2 are Seq[Tensor], need to stack then concatenate
@@ -70,7 +74,7 @@ class FiBiNet(
     val combined = torch.cat(new TensorVector(stacked1, stacked2), 1L)
 
     // Flatten and pass through MLP: (batch, num_interactions * 2 * embed_dim)
-    val flattened = combined.view(batchSize, -1)
+    val flattened = combined.view(combined.size(0), -1)
     val logits = mlp.forward(flattened)
     logits
   }
@@ -113,22 +117,37 @@ class BilinearInteraction(
     // f1, f2: (batch, num_fields, embed_dim)
     bilinearType match {
       case "field_all" =>
+        // field_all: single shared bilinear matrix
+        // Output: (batch, num_fields^2, embed_dim)
         val w = weight.asInstanceOf[LinearImpl]
         (0 until numFields).flatMap { i =>
           (0 until numFields).map { j =>
             val vi = f1.select(1, i)
             val vj = w.forward(f2.select(1, j))
-            vi.mul(vj).sum(1).unsqueeze(1)
+            vi.mul(vj)  // (batch, embed_dim) - element-wise product
           }
         }
 
-      case _ =>
+      case "field_each" =>
+        // field_each: each field has its own bilinear matrix
+        // Output: (batch, num_fields^2, embed_dim)
         val w = weight.asInstanceOf[Array[LinearImpl]]
         (0 until numFields).flatMap { i =>
           (0 until numFields).map { j =>
             val vi = f1.select(1, i)
             val vj = w(i).forward(f2.select(1, j))
-            vi.mul(vj).sum(1).unsqueeze(1)
+            vi.mul(vj)  // (batch, embed_dim) - element-wise product
+          }
+        }
+
+      case "field_interaction" =>
+        // field_interaction: only i<j pairs, output (batch, num_interactions, embed_dim)
+        val w = weight.asInstanceOf[Array[LinearImpl]]
+        (0 until numFields).flatMap { i =>
+          (i + 1 until numFields).map { j =>
+            val vi = f1.select(1, i)
+            val vj = w(i).forward(f2.select(1, j))
+            vi.mul(vj)  // (batch, embed_dim) - element-wise product
           }
         }
     }

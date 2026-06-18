@@ -25,7 +25,8 @@ import scala.math
  * timeBucketDivisor : float, default=1.0
  *   Divisor applied after sqrt/log.
  * timeBucketUnit : {'minutes', 'seconds'}, default='minutes'
- *   Unit used before bucketization.
+ * device : string, default=DeviceSupport.backend
+ *   Device for computation.
  *
  * Shape
  * -----
@@ -38,21 +39,24 @@ class RelativeBucketedTimeAndPositionBias(
   numTimeBuckets: Int = 128,
   timeBucketFn: String = "sqrt",
   timeBucketDivisor: Float = 1.0f,
-  timeBucketUnit: String = "minutes"
+  timeBucketUnit: String = "minutes",
+  device: String = DeviceSupport.backend
 ) extends Module {
 
   require(timeBucketFn == "sqrt" || timeBucketFn == "log", s"Unsupported time_bucket_fn: $timeBucketFn")
   require(timeBucketUnit == "minutes" || timeBucketUnit == "seconds", s"Unsupported time_bucket_unit: $timeBucketUnit")
 
+  private val targetDevice = new org.bytedeco.pytorch.Device(device)
+
   private val boundPos = math.sqrt(1.0 / (2 * maxSeqLen - 1)).toFloat
   private val posW = torch.rand(Array((2 * maxSeqLen - 1).toLong, nHeads.toLong),
-    new TensorOptions().dtype(new ScalarTypeOptional(ScalarType.Float)))
+    new TensorOptions().dtype(new ScalarTypeOptional(ScalarType.Float))).to(targetDevice, ScalarType.Float)
   posW.uniform_(-boundPos, boundPos,new GeneratorOptional())
   register_parameter("pos_w", posW)
 
   private val boundTs = math.sqrt(1.0 / (numTimeBuckets + 1)).toFloat
   private val tsW = torch.rand(Array((numTimeBuckets + 1).toLong, nHeads.toLong),
-    new TensorOptions().dtype(new ScalarTypeOptional(ScalarType.Float)))
+    new TensorOptions().dtype(new ScalarTypeOptional(ScalarType.Float))).to(targetDevice, ScalarType.Float)
   tsW.uniform_(-boundTs, boundTs,new GeneratorOptional())
   register_parameter("ts_w", tsW)
 

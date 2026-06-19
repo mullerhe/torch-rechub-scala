@@ -47,7 +47,7 @@ class MIND(
     sequenceIndices: Tensor  // (batch, seq_len)
   ): Tensor = {
     val featEmb = featureEmbedding.forward(features)
-    val seqEmb = sequenceEmbedding.getEmbedding(sequenceFeature.name, sequenceIndices)
+    val seqEmb = sequenceEmbedding.getSequenceEmbedding(sequenceFeature.name, sequenceIndices)
     // seqEmb: (batch, seq_len, embed_dim)
 
     // Capsule routing to get multiple interests

@@ -3,6 +3,7 @@ package torchrec.trainers
 import torchrec.Implicits._
 import torchrec.data.DataLoader
 import torchrec.models.matching._
+import torchrec.models.ranking.DIEN
 import torchrec.basic.metrics._
 
 import org.bytedeco.pytorch._
@@ -147,6 +148,109 @@ class MatchTrainer(
                   totalLoss += avgLossTensor.item().toFloat
                   numBatches += 1
                   // Close tensors to free memory
+                  lossTensor.close()
+                  avgLossTensor.close()
+                  allScores.close()
+                  posScores.close()
+                  negScores.close()
+                  negScoresMax.close()
+                  diff.close()
+                  mask.close()
+                  diagOnes.close()
+                  eyeMask.close()
+                } else {
+                  numBatches += 1
+                }
+              } else {
+                numBatches += 1
+              }
+
+            case mind: MIND =>
+              val batchSize = userFeats.values.head.size(0).toInt
+              if (batchSize > 1) {
+                val tokensOpt = batch.tokens
+                if (tokensOpt.nonEmpty) {
+                  val tokens = tokensOpt.get
+                  val userEmb = mind.forward(userFeats, tokens)
+                  val itemEmb = if (itemFeats.nonEmpty) {
+                    itemFeats.values.head
+                  } else {
+                    torch.zeros_like(userEmb)
+                  }
+                  val itemEmbFloat = itemEmb.toType(ScalarType.Float)
+                  val allScores = userEmb.matmul(itemEmbFloat.t())
+                  val batchIdx = torch.arange(new Scalar(0), new Scalar(batchSize.toDouble), new Scalar(1),
+                    new TensorOptions().dtype(new ScalarTypeOptional(ScalarType.Long)))
+                    .to(new org.bytedeco.pytorch.Device(device), ScalarType.Long)
+                  val posScores = allScores.gather(1, batchIdx.view(batchSize.toLong, 1)).squeeze()
+                  val diagOnes = torch.ones(Array(batchSize.toLong, batchSize.toLong),
+                    new TensorOptions().dtype(new ScalarTypeOptional(ScalarType.Float)))
+                    .to(new org.bytedeco.pytorch.Device(device), ScalarType.Float)
+                  val eyeMask = torch.eye(batchSize.toLong,
+                    new TensorOptions().dtype(new ScalarTypeOptional(ScalarType.Float)))
+                    .to(new org.bytedeco.pytorch.Device(device), ScalarType.Float)
+                  val mask = diagOnes.sub(eyeMask)
+                  val negScores = allScores.add(mask.mul(new Scalar(-1e9f)))
+                  val negScoresMax = torch.max(negScores, 1).get0
+                  val diff = posScores.sub(negScoresMax)
+                  val lossTensor = torch.log(torch.sigmoid(diff).add(new Scalar(1e-8f))).neg()
+                  val avgLossTensor = lossTensor.mean()
+                  avgLossTensor.backward()
+                  optimizer.step()
+                  totalLoss += avgLossTensor.item().toFloat
+                  numBatches += 1
+                  lossTensor.close()
+                  avgLossTensor.close()
+                  allScores.close()
+                  posScores.close()
+                  negScores.close()
+                  negScoresMax.close()
+                  diff.close()
+                  mask.close()
+                  diagOnes.close()
+                  eyeMask.close()
+                } else {
+                  numBatches += 1
+                }
+              } else {
+                numBatches += 1
+              }
+
+            case dien: DIEN =>
+              val batchSize = userFeats.values.head.size(0).toInt
+              if (batchSize > 1) {
+                val tokensOpt = batch.tokens
+                if (tokensOpt.nonEmpty) {
+                  val tokens = tokensOpt.get
+                  val seqFeatsMap = Map("seq" -> tokens)
+                  val userEmb = dien.forward(userFeats, seqFeatsMap)
+                  val itemEmb = if (itemFeats.nonEmpty) {
+                    itemFeats.values.head
+                  } else {
+                    torch.zeros_like(userEmb)
+                  }
+                  val itemEmbFloat = itemEmb.toType(ScalarType.Float)
+                  val allScores = userEmb.matmul(itemEmbFloat.t())
+                  val batchIdx = torch.arange(new Scalar(0), new Scalar(batchSize.toDouble), new Scalar(1),
+                    new TensorOptions().dtype(new ScalarTypeOptional(ScalarType.Long)))
+                    .to(new org.bytedeco.pytorch.Device(device), ScalarType.Long)
+                  val posScores = allScores.gather(1, batchIdx.view(batchSize.toLong, 1)).squeeze()
+                  val diagOnes = torch.ones(Array(batchSize.toLong, batchSize.toLong),
+                    new TensorOptions().dtype(new ScalarTypeOptional(ScalarType.Float)))
+                    .to(new org.bytedeco.pytorch.Device(device), ScalarType.Float)
+                  val eyeMask = torch.eye(batchSize.toLong,
+                    new TensorOptions().dtype(new ScalarTypeOptional(ScalarType.Float)))
+                    .to(new org.bytedeco.pytorch.Device(device), ScalarType.Float)
+                  val mask = diagOnes.sub(eyeMask)
+                  val negScores = allScores.add(mask.mul(new Scalar(-1e9f)))
+                  val negScoresMax = torch.max(negScores, 1).get0
+                  val diff = posScores.sub(negScoresMax)
+                  val lossTensor = torch.log(torch.sigmoid(diff).add(new Scalar(1e-8f))).neg()
+                  val avgLossTensor = lossTensor.mean()
+                  avgLossTensor.backward()
+                  optimizer.step()
+                  totalLoss += avgLossTensor.item().toFloat
+                  numBatches += 1
                   lossTensor.close()
                   avgLossTensor.close()
                   allScores.close()

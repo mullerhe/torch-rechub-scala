@@ -100,6 +100,10 @@ lazy val root = (project in file("."))
     publish := {},
     publishLocal := {},
 
+    // Some environments add duplicated resource mappings; keep jar packaging stable.
+    Compile / packageBin / mappings := (Compile / packageBin / mappings).value.distinctBy(_._2),
+    Test / packageBin / mappings := (Test / packageBin / mappings).value.distinctBy(_._2),
+
     // Additional libraryDependencies for PyTorch JavaCPP
     libraryDependencies ++= Seq(
       // PyTorch GPU

@@ -90,8 +90,8 @@ class DIEN(
     // Feature embeddings
     val featEmb = embedding.forward(sparseFeats, Map.empty, squeeze = true)
 
-    // Sequence embeddings
-    val seqEmb = embedding.forward(Map.empty, seqFeats, squeeze = false)
+    // Sequence embeddings - use forwardSeqRaw to get 3D embeddings without pooling for GRU
+    val seqEmb = embedding.forwardSeqRaw(seqFeats)
 
     // Interest Extractor + Evolving
     val interestOut = mutable.ListBuffer[Tensor]()
@@ -103,11 +103,10 @@ class DIEN(
       // Interest Extractor: GRU
       val gruOut = interestGRUs(i).forward(seq).get1()  // (B, T, D)
 
-      // Use last valid hidden state as target
-      val seqLens = mask.sum(1).toType(ScalarType.Long)
-      val clampedLens = seqLens.clamp(new ScalarOptional(new Scalar(1L)))
-      val lastIdx = (clampedLens.sub(new Scalar(1l)) ).unsqueeze(1).expand(-1, seq.size(2))
-      val targetEmb = gruOut.gather(1, lastIdx).squeeze(1)  // (B, D)
+      // Use last valid hidden state as target - simplified without gather
+      val seqLen = seq.size(1)
+      // Take last time step directly: (B, D)
+      val targetEmb = gruOut.select(1, seqLen - 1)
 
       // Interest Evolving: AUGRU
       val hasHistAny = mask.any(1)

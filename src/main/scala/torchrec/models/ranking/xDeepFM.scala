@@ -63,6 +63,7 @@ class xDeepFM(
   private val linearWeight = {
     val w = new org.bytedeco.pytorch.LinearImpl(sparseDim, 1)
     register_module("linear", w)
+    w.to(new org.bytedeco.pytorch.Device(device), false)
     w
   }
 

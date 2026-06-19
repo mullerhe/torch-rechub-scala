@@ -72,7 +72,8 @@ class StandardScaler(withMean: Boolean = true, withStd: Boolean = true) extends 
             case i: Int => i.toFloat
             case _ => 0.0f
           }
-          val scaled = if (withMean) (v - mean) / std else v / std
+          val centered = if (withMean) v - mean else v
+          val scaled = if (withStd) centered / std else centered
           newData += scaled
         }
 
@@ -399,16 +400,18 @@ class OneHotEncoder(sparseOutput: Boolean = true, maxCategories: Option[Int] = N
 
     for (colName <- df.columns) {
       val col = df.col(colName)
-      val uniqueValues = mutable.LinkedHashSet[Any]()
-      for (i <- 0 until col.length) {
-        uniqueValues.add(col(i))
+      if (col.dtype == DataType.String || col.dtype == DataType.Boolean) {
+        val uniqueValues = mutable.LinkedHashSet[Any]()
+        for (i <- 0 until col.length) {
+          uniqueValues.add(col(i))
+        }
+        val values = uniqueValues.toList
+        val limitedValues = maxCategories match {
+          case Some(max) if values.length > max => values.take(max)
+          case _ => values
+        }
+        cats(colName) = limitedValues
       }
-      val values = uniqueValues.toList
-      val limitedValues = maxCategories match {
-        case Some(max) if values.length > max => values.take(max)
-        case _ => values
-      }
-      cats(colName) = limitedValues
     }
 
     categoryMappings = cats.toMap
@@ -416,22 +419,26 @@ class OneHotEncoder(sparseOutput: Boolean = true, maxCategories: Option[Int] = N
   }
 
   def transform(df: DataFrame): DataFrame = {
-    val newColumns = mutable.Map[String, Column]()
+    val newColumns = mutable.LinkedHashMap[String, Column]()
 
     for (colName <- df.columns) {
       val col = df.col(colName)
       if (categoryMappings.contains(colName)) {
         val categories = categoryMappings(colName)
         val numRows = col.length
-        val newData = mutable.ArrayBuffer[Any]()
-
-        for (i <- 0 until numRows) {
-          val v = col(i)
-          val idx = categories.indexOf(v)
-          newData += (if (idx >= 0) idx.toFloat else -1.0f)
+        categories.foreach { category =>
+          val safeCategoryName = category.toString
+            .replaceAll("[^A-Za-z0-9_]+", "_")
+            .stripPrefix("_")
+            .stripSuffix("_")
+          val outColName = if (safeCategoryName.nonEmpty) s"${colName}_${safeCategoryName}" else s"${colName}_cat"
+          val newData = mutable.ArrayBuffer[Any]()
+          for (i <- 0 until numRows) {
+            val v = col(i)
+            newData += (if (v == category) 1.0f else 0.0f)
+          }
+          newColumns(outColName) = new Column(outColName, newData, DataType.Float32)
         }
-
-        newColumns(colName) = new Column(colName, newData, DataType.Float32)
       } else {
         newColumns(colName) = col
       }

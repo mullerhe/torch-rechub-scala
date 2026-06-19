@@ -126,11 +126,9 @@ class BST(
     val targetFlat = tgt
     val combined = torch.cat(new TensorVector(interest, targetFlat, contextFlat), 1)
 
-    // Final MLP
+    // Final MLP - return raw logits for BCEWithLogitsLoss
     val logits = mlp.forward(combined)
-
-    // Apply sigmoid
-    logits.sigmoid()
+    logits
   }
 }
 
@@ -220,6 +218,7 @@ class BSTEncoderLayer(
     val ffnOut = ffnLinear2.forward(droppedFfn)
 
     // Second residual
-    residual1.add(ffnOut)
+    val out2 = residual1.add(ffnOut)
+    out2
   }
 }

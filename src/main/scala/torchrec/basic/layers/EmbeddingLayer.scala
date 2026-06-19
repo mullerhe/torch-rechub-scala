@@ -24,6 +24,11 @@ class EmbeddingLayer(
   val sparse: Boolean = false
 ) extends Module {
 
+  private def sanitizeModuleName(name: String): String = {
+    val cleaned = name.replaceAll("[^A-Za-z0-9_]+", "_")
+    cleaned.stripPrefix("_").stripSuffix("_")
+  }
+
   // Use ModuleDictImpl like PyTorch's nn.ModuleDict
   private val embedDict = new ModuleDictImpl()
 
@@ -43,7 +48,7 @@ class EmbeddingLayer(
         if (device != "cpu") {
           embedding.to(new org.bytedeco.pytorch.Device(device), false)
         }
-        register_module(key, embedding)
+        register_module(sanitizeModuleName(key), embedding)
         embeddingTables(key) = embedding
       }
 
@@ -58,7 +63,7 @@ class EmbeddingLayer(
         if (device != "cpu") {
           embedding.to(new org.bytedeco.pytorch.Device(device), false)
         }
-        register_module(key, embedding)
+        register_module(sanitizeModuleName(key), embedding)
         embeddingTables(key) = embedding
       }
 
@@ -238,6 +243,23 @@ class EmbeddingLayer(
     }
   }
 
+  /** Get embedding for a single sequence feature. */
+  def getSequenceEmbedding(name: String, indices: Tensor): Tensor = {
+    val embedKey = s"embed_seq_$name"
+    embeddingTables.get(embedKey) match {
+      case Some(embed) =>
+        val embedDev = embed.weight().device()
+        val idxOnDev = if (indices.device().equals(embedDev)) {
+          indices.toType(ScalarType.Long)
+        } else {
+          indices.toType(ScalarType.Long).to(embedDev, ScalarType.Long)
+        }
+        embed.forward(idxOnDev)
+      case None =>
+        throw new IllegalArgumentException(s"No sequence embedding table for: $name")
+    }
+  }
+
   /**
    * Forward pass for sequence features only, without pooling.
    * Returns 3D tensor (batch, seqLen, embedDim).
@@ -268,15 +290,16 @@ class EmbeddingLayer(
     }
 
     // Stack embeddings along field dimension: (batch, num_features, seqLen, embedDim)
-    // or concatenate if there's only one sequence feature
+    // Always return 4D tensor for consistency
     val embeddingsArr = new Array[Tensor](embeddingList.size)
     embeddingList.copyToArray(embeddingsArr)
 
     if (embeddingList.size == 1) {
-      embeddingsArr.head
+      // Single feature: add a dimension to make it 4D
+      embeddingsArr.head.unsqueeze(1)
     } else {
-      // Multiple sequence features: concatenate along field dim, keeping sequence dim
-      torch.cat(new TensorVector(embeddingsArr.toSeq*), 2L)
+      // Multiple sequence features: concatenate along field dim (dim=1), keeping sequence dim
+      torch.cat(new TensorVector(embeddingsArr.toSeq*), 1L)
     }
   }
 

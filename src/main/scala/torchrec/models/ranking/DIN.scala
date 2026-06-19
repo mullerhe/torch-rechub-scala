@@ -52,11 +52,11 @@ class DIN(
 
     // Get sequence embeddings and apply attention
     val seqEmbs = sequenceFeatures.map { seqFeat =>
-      val seqEmb = sequenceEmbedding.getEmbedding(seqFeat.name, sequenceFeats(seqFeat.name))
+      val seqEmb = sequenceEmbedding.getSequenceEmbedding(seqFeat.name, sequenceFeats(seqFeat.name))
       // seqEmb: (batch, seq_len, embed_dim)
 
       // Expand target to same sequence length
-      val targetEmb = sequenceEmbedding.getEmbedding(seqFeat.name, targetIdx.toType(ScalarType.Long))
+      val targetEmb = sequenceEmbedding.getSequenceEmbedding(seqFeat.name, targetIdx.toType(ScalarType.Long))
       // targetEmb: (batch, 1, embed_dim)
       val targetExpanded = targetEmb.unsqueeze(1).repeat(1, seqEmb.size(1), 1)
 

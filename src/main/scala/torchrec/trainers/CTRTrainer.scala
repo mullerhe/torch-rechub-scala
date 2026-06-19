@@ -23,6 +23,9 @@ import torchrec.models.ranking.ETA
 import torchrec.models.ranking.MEMBA
 import torchrec.models.ranking.XGBoostModel
 import torchrec.models.ranking.LiquidNetWork
+import torchrec.models.ranking.xDeepFM
+import torchrec.models.ranking.AutoInt
+import torchrec.models.ranking.FiBiNet
 import torchrec.models.generative.{LLM4Rec, HLLM}
 import torchrec.models.matching.MAMBA
 import torchrec.basic.losses.{BCELoss, BCEWithLogitsLoss}
@@ -175,6 +178,30 @@ class CTRTrainer(
 
              case xgb: XGBoostModel =>
                val pred = xgb.forward(features)
+               val batchSize = pred.size(0).toInt
+               val target2D = labels.view(batchSize, 1).toType(ScalarType.Float)
+               val loss = bceLoss.apply(pred, target2D)
+               loss.backward(); optimizer.step()
+               totalLoss += loss.itemSafe().toFloat; numBatches += 1
+
+             case xdeepfm: xDeepFM =>
+               val pred = xdeepfm.forward(features)
+               val batchSize = pred.size(0).toInt
+               val target2D = labels.view(batchSize, 1).toType(ScalarType.Float)
+               val loss = bceLoss.apply(pred, target2D)
+               loss.backward(); optimizer.step()
+               totalLoss += loss.itemSafe().toFloat; numBatches += 1
+
+             case fibinet: FiBiNet =>
+               val pred = fibinet.forward(features)
+               val batchSize = pred.size(0).toInt
+               val target2D = labels.view(batchSize, 1).toType(ScalarType.Float)
+               val loss = bceLoss.apply(pred, target2D)
+               loss.backward(); optimizer.step()
+               totalLoss += loss.itemSafe().toFloat; numBatches += 1
+
+             case autoint: AutoInt =>
+               val pred = autoint.forward(features)
                val batchSize = pred.size(0).toInt
                val target2D = labels.view(batchSize, 1).toType(ScalarType.Float)
                val loss = bceLoss.apply(pred, target2D)
@@ -408,6 +435,30 @@ class CTRTrainer(
 
           case xgb: XGBoostModel =>
             val pred = xgb.forward(features).sigmoid()
+            val predHost = pred.squeeze().to(ScalarType.Float).contiguous().cpu()
+            val labelHost = label.squeeze().to(ScalarType.Float).contiguous().cpu()
+            predList.appendAll(predHost.toFloatArray)
+            labelList.appendAll(labelHost.toFloatArray)
+            predHost.close(); labelHost.close()
+
+          case xdeepfm: xDeepFM =>
+            val pred = xdeepfm.forward(features).sigmoid()
+            val predHost = pred.squeeze().to(ScalarType.Float).contiguous().cpu()
+            val labelHost = label.squeeze().to(ScalarType.Float).contiguous().cpu()
+            predList.appendAll(predHost.toFloatArray)
+            labelList.appendAll(labelHost.toFloatArray)
+            predHost.close(); labelHost.close()
+
+          case fibinet: FiBiNet =>
+            val pred = fibinet.forward(features).sigmoid()
+            val predHost = pred.squeeze().to(ScalarType.Float).contiguous().cpu()
+            val labelHost = label.squeeze().to(ScalarType.Float).contiguous().cpu()
+            predList.appendAll(predHost.toFloatArray)
+            labelList.appendAll(labelHost.toFloatArray)
+            predHost.close(); labelHost.close()
+
+          case autoint: AutoInt =>
+            val pred = autoint.forward(features).sigmoid()
             val predHost = pred.squeeze().to(ScalarType.Float).contiguous().cpu()
             val labelHost = label.squeeze().to(ScalarType.Float).contiguous().cpu()
             predList.appendAll(predHost.toFloatArray)

@@ -52,12 +52,6 @@ class CINFixed(
     }
   }
 
-  // Final linear projection to scalar
-  private val totalDim = crossLayerSizes.sum
-  private val fc = new org.bytedeco.pytorch.LinearImpl(totalDim, 1)
-  register_module("fc", fc)
-  fc.to(new org.bytedeco.pytorch.Device(device), false)
-
   def forward(embeddings: Tensor): Tensor = {
     // embeddings: (batch, num_fields, embed_dim)
     val batchSize = embeddings.size(0)
@@ -81,12 +75,8 @@ class CINFixed(
       var convOut = convLayers(i).forward(flat)
       convOut = convOut.relu()
 
-      // Debug: print shapes
-      println(s"[CINFixed] i=$i: xh.shape=${xh.size(0)}x${xh.size(1)}x${xh.size(2)}, flat.shape=${flat.size(0)}x${flat.size(1)}, convOut.shape=${convOut.size(0)}x${convOut.size(1)}")
-
-      // Pool this layer's output and store
+      // Pool this layer's output and store (sum over field dimension)
       val pooled = convOut.sum(1).unsqueeze(1)  // (batch, 1)
-      println(s"[CINFixed] i=$i: pooled.shape=${pooled.size(0)}x${pooled.size(1)}, pooled.device=${pooled.device().toString()}")
       outputs += pooled
 
       // Prepare hk for next layer
@@ -103,22 +93,15 @@ class CINFixed(
         // Reshape: (batch, num_fields * embed_dim) -> (batch, num_fields, embed_dim)
         // Then transpose to (batch, embed_dim, num_fields)
         hk = projOut.view(batchSize, numFields, embedDim).transpose(1, 2)
-        println(s"[CINFixed] i=$i: hk.shape=${hk.size(0)}x${hk.size(1)}x${hk.size(2)} after projection")
       }
     }
 
-    // Concatenate all pooled layer outputs
-    println(s"[CINFixed] Before cat: outputs.size=${outputs.size}")
-    for (idx <- outputs.indices) {
-      val t = outputs(idx)
-      println(s"[CINFixed]   outputs($idx).shape=${t.size(0)}x${t.size(1)}, device=${t.device().toString()}, is_cuda=${t.is_cuda}")
-    }
+    // Concatenate all pooled layer outputs: (batch, num_layers)
     import torchrec.Implicits.SeqTensorRichSeq
     val tensorSeq: Seq[Tensor] = outputs.toSeq
-    println(s"[CINFixed] tensorSeq.length=${tensorSeq.length}")
-    val cinOut = torch.cat(new TensorVector(tensorSeq*),1l) //tensorSeq.cat(1L)  // (batch, total_cross_dim)
-    println(s"[CINFixed] After cat: cinOut.shape=${cinOut.size(0)}x${cinOut.size(1)}")
+    val cinOut = torch.cat(new TensorVector(tensorSeq*), 1L)  // (batch, num_layers)
 
-    fc.forward(cinOut).squeeze(1)  // (batch,)
+    // Sum over all layers to get final CIN output
+    cinOut.sum(1).unsqueeze(1)  // (batch, 1)
   }
 }

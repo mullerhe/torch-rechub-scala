@@ -94,6 +94,7 @@ class AutoInt(
       y = y.add(yDeep)
     }
 
-    y.squeeze(1)
+    // Return (batch, 1) - don't squeeze to avoid BCEWithLogitsLoss shape mismatch
+    y
   }
 }

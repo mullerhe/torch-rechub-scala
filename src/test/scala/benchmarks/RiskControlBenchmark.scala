@@ -336,6 +336,7 @@ object RiskControlBenchmark {
     val embedDim = DEFAULT_EMBED_DIM
 
     try {
+      // DataGenerator already uses feat_0, feat_1... so no need for featureNames
       val (trainData, _, _) = DataGenerator.generateRankingData(
         numSamples = numSamples,
         numSparseFeatures = 5,
@@ -355,7 +356,7 @@ object RiskControlBenchmark {
       val model = new xDeepFM(features, embedDim, List(64, 32), List(128L, 64L), true, 0.2f, DeviceSupport.backend)
 
       val trainLoader = new DataLoader(trainData, batchSize, shuffle = true)
-      val criterion = new BCELoss()
+      val criterion = new BCEWithLogitsLoss()
 
       val startTime = System.nanoTime()
       var totalLoss = 0.0
@@ -371,9 +372,17 @@ object RiskControlBenchmark {
         }
 
         val logits = model.forward(sparseFeats, denseFeats)
-        val loss = criterion.apply(torch.sigmoid(logits), labels)
+        // Ensure labels match logits shape: [batch, 1] -> squeeze to [batch] for BCEWithLogitsLoss
+        val labelsFlat = if (labels.dim() == 2L && labels.size(1) == 1L) {
+          labels.squeeze(1L)
+        } else labels
+        val loss = criterion.apply(logits, labelsFlat)
 
-        totalLoss += loss.item().toDouble()
+        val lossVal = loss.item().toDouble()
+        if (numBatches < 3) {
+          println(f"  [DEBUG] batch=$numBatches, logits.mean=${logits.mean().item().toDouble()}%.4f, labels.mean=${labelsFlat.mean().item().toDouble()}%.4f, loss=$lossVal%.6f")
+        }
+        totalLoss += lossVal
         numBatches += 1
       }
 

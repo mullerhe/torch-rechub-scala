@@ -29,12 +29,12 @@ object AliExpressBenchmarks {
     println("=" * 60)
 
     val results = mutable.ListBuffer[BenchmarkResult]()
-
-    // Test 1: XGBoost on AliExpress (ranking task)
-    results += runXGBoostAliExpress()
-
     // Test 2: MAMBA on AliExpress (matching task)
     results += runMAMBAAiExpress()
+    // Test 1: XGBoost on AliExpress (ranking task)
+//    results += runXGBoostAliExpress()
+
+
 
     // Print summary
     printResults(results.toList)

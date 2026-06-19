@@ -107,11 +107,14 @@ class MAMBA(
     // Prepend [CLS]
     val clsBatched = clsTensor.expand(batchSize.toLong, 1L, embedDim.toLong)
     val tokenEmbWithCls = torch.cat(new TensorVector(clsBatched, tokenEmb), 1)
+    println("  [Model] MAMBA forward .... ")
 
     // MAMBA layers
     var x = tokenEmbWithCls
     x = dropoutLayer.forward(x)
     layers.foreach { layer =>
+      println("  [Model] MAMBA layer foreach ....")
+
       x = layer.forward(x).add(x)  // Residual
     }
 

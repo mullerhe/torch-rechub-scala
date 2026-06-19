@@ -30,9 +30,10 @@ object AliExpressBenchmarks {
 
     val results = mutable.ListBuffer[BenchmarkResult]()
     // Test 2: MAMBA on AliExpress (matching task)
-    results += runMAMBAAiExpress()
+
     // Test 1: XGBoost on AliExpress (ranking task)
-//    results += runXGBoostAliExpress()
+    results += runXGBoostAliExpress()
+    //    results += runMAMBAAiExpress()
 
 
 
@@ -95,7 +96,7 @@ object AliExpressBenchmarks {
         device = benchmarkDevice
       )
 
-      println("  [Model] XGBoostModel created with 16 trees, depth 4")
+      println("  [Model] XGBoostModel created with 64 trees, depth 6")
 
       val startTime = System.currentTimeMillis()
 
@@ -212,7 +213,7 @@ object AliExpressBenchmarks {
       // MAMBA for matching with AliExpress sequence data
       val model = new MAMBA(
         vocabSize = vocabSize,
-        embedDim = 64,
+        embedDim = 32, //64,
         dState = 8,
         numLayers = 2,
         maxSeqLen = seqLen,
@@ -232,6 +233,7 @@ object AliExpressBenchmarks {
         numEpochs = 2,
         verbose = true
       )
+      println("  [Model] Training started...")
 
       trainer.fit(trainLoader)
 

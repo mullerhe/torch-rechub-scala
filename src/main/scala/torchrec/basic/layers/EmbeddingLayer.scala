@@ -117,30 +117,11 @@ class EmbeddingLayer(
     val embedDims = embeddingList.map(e => if (e.dim() == 3L) e.size(2).toInt else e.size(1).toInt)
     val totalDim = embedDims.sum
 
-    // Manually concatenate embeddings
-    val resultArr = new Array[Float](batchSize * totalDim)
-    var offset = 0
-    for ((emb, f) <- embeddingList.zipWithIndex) {
-      val embCpu = try {
-        if (emb.is_cuda()) emb.cpu() else emb
-      } catch {
-        case _: Exception => emb.to(new Device("cpu"), ScalarType.Float)
-      }
-      val arr = embCpu.toFloatArray
-      val thisDim = embedDims(f)
-      var i = 0
-      while (i < batchSize) {
-        var k = 0
-        while (k < thisDim) {
-          resultArr(i * totalDim + offset + k) = arr(i * thisDim + k)
-          k += 1
-        }
-        i += 1
-      }
-      offset += thisDim
-    }
-    val embedDev = embeddingList.head.device()
-    val flattened = torchrec.TorchRec.tensor(resultArr, batchSize.toLong, totalDim.toLong).to(embedDev, ScalarType.Float)
+    // Use GPU cat for concatenation - much more efficient than manual CPU copy
+    val embeddingsArr = new Array[Tensor](embeddingList.size)
+    embeddingList.copyToArray(embeddingsArr)
+    val concatenated = torch.cat(new TensorVector(embeddingsArr.toSeq*), 1L)
+    val flattened = concatenated.view(batchSize.toLong, totalDim)
     if (squeeze && embeddingList.size == 1) {
       flattened.squeeze(1L)
     } else {

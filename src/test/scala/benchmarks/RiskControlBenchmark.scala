@@ -67,19 +67,19 @@ object RiskControlBenchmark {
     results ++= runDeepLearningBenchmarks()
 
     // Phase 2: Graph Neural Networks
-    println("\n[Phase 2] Graph Neural Networks for Fraud Detection")
-    println("-" * 60)
-    results ++= runGraphNNBenchmarks()
-
-    // Phase 3: Large Models
-    println("\n[Phase 3] Large Models for Sequential Risk Analysis")
-    println("-" * 60)
-    results ++= runLLMBenchmarks()
-
-    // Phase 4: Full Pipeline Integration
-    println("\n[Phase 4] Full Pipeline Integration")
-    println("-" * 60)
-    results ++= runFullPipelineBenchmarks()
+//    println("\n[Phase 2] Graph Neural Networks for Fraud Detection")
+//    println("-" * 60)
+//    results ++= runGraphNNBenchmarks()
+//
+//    // Phase 3: Large Models
+//    println("\n[Phase 3] Large Models for Sequential Risk Analysis")
+//    println("-" * 60)
+//    results ++= runLLMBenchmarks()
+//
+//    // Phase 4: Full Pipeline Integration
+//    println("\n[Phase 4] Full Pipeline Integration")
+//    println("-" * 60)
+//    results ++= runFullPipelineBenchmarks()
 
     printSummary(results.toList)
   }
@@ -92,25 +92,25 @@ object RiskControlBenchmark {
     val results = mutable.ListBuffer[RiskControlBenchmarkResult]()
 
     // DeepFM benchmark
-    results += runDeepFMBenchmark()
-
-    // DCN benchmark
-    results += runDCNBenchmark()
-
-    // WideDeep benchmark
-    results += runWideDeepBenchmark()
+//    results += runDeepFMBenchmark()
+//
+//    // DCN benchmark
+//    results += runDCNBenchmark()
+//
+//    // WideDeep benchmark
+//    results += runWideDeepBenchmark()
 
     // xDeepFM benchmark
     results += runxDeepFMBenchmark()
 
-    // FiBiNet benchmark
-    results += runFiBiNetBenchmark()
-
-    // AFM benchmark
-    results += runAFMBenchmark()
-
-    // AutoInt benchmark
-    results += runAutoIntBenchmark()
+//    // FiBiNet benchmark
+//    results += runFiBiNetBenchmark()
+//
+//    // AFM benchmark
+//    results += runAFMBenchmark()
+//
+//    // AutoInt benchmark
+//    results += runAutoIntBenchmark()
 
     results.toList
   }

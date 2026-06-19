@@ -70,9 +70,9 @@ object BenchmarkRunner {
 
     // Run all benchmarks
     val results = mutable.ListBuffer[BenchmarkResult]()
-
+    results += runMAMBABenchmark()
     results += runESMMBenchmark()
-    //    System.gc()
+    System.gc()
     //    results += runMetaHeacBenchmark()
     //
     results += runMMOEBenchmark()

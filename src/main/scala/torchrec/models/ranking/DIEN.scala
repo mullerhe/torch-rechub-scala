@@ -88,7 +88,7 @@ class DIEN(
     seqFeats: Map[String, Tensor]
   ): Tensor = {
     // Feature embeddings
-    val featEmb = embedding.forward(sparseFeats, Map.empty, squeeze = true)
+    val featEmb = embedding.forward(sparseFeats, squeeze = true)
 
     // Sequence embeddings - use forwardSeqRaw to get 3D embeddings without pooling for GRU
     val seqEmb = embedding.forwardSeqRaw(seqFeats)
@@ -96,8 +96,14 @@ class DIEN(
     // Interest Extractor + Evolving
     val interestOut = mutable.ListBuffer[Tensor]()
 
+    // sequenceFeatures embeddings are concatenated along the last dim in forwardSeqRaw
+    val feaDims = sequenceFeatures.map(_.embedDim)
+    var offset = 0
     for (i <- sequenceFeatures.indices) {
-      val seq = seqEmb.select(1, i)  // (B, T, D)
+      val dim = feaDims(i)
+      // slice out this feature's embedding from the last dim: seqEmb is (B, T, totalDim)
+      val seq = seqEmb.narrow(2, offset.toLong, dim.toLong)
+      offset += dim
       val mask = getMask(seqFeats, sequenceFeatures(i))  // (B, T)
 
       // Interest Extractor: GRU
@@ -106,28 +112,14 @@ class DIEN(
       // Use last valid hidden state as target - simplified without gather
       val seqLen = seq.size(1)
       // Take last time step directly: (B, D)
-      val targetEmb = gruOut.select(1, seqLen - 1)
+      val targetEmb = if (gruOut.dim() == 3L) gruOut.select(1, seqLen - 1) else gruOut
 
       // Interest Evolving: AUGRU
-      val hasHistAny = mask.any(1)
-      val embedDimAU = augrus(i).embed_dim
-
-      val h = if (hasHistAny.count_nonzero().item().toInt() > 0) {
-        val validMask = hasHistAny
-        val validSeq = seq.masked_select(validMask.unsqueeze(2)).view(-1, seq.size(1), seq.size(2))
-        val validTarget = targetEmb.masked_select(validMask.unsqueeze(1)).view(-1, targetEmb.size(1))
-        val validMaskFlat = mask.masked_select(validMask)
-
-        val (_, hValid) = augrus(i).forward(validSeq, validTarget, validMaskFlat)
-
-        // Scatter back
-        val hFull = torch.zeros(hasHistAny.size(0).toInt, embedDimAU).to(seq.device(), ScalarType.Float)
-        val validIdx = torch.where(validMask).get(1).toType(ScalarType.Long)
-        hFull.index_copy(0, validIdx, hValid)
-        hFull
-      } else {
-        torch.zeros(hasHistAny.size(0).toInt, embedDimAU).to(seq.device(), ScalarType.Float)
-      }
+      // Avoid batch index_select/index_copy, which can fail on synthetic batches
+      // when masks/indices are shaped unexpectedly. The AUGRU layer already
+      // handles masking internally.
+      val (evolvingSeq, _) = augrus(i).forward(seq, targetEmb, mask)
+      val h = if (evolvingSeq.dim() == 3L) evolvingSeq.select(1, evolvingSeq.size(1) - 1) else evolvingSeq
 
       interestOut += h
     }

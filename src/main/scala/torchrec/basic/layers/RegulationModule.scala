@@ -79,9 +79,9 @@ class RegulationModule(
     for (i <- 0 until numFields) {
       val fieldG1 = g1Scaled.select(0, i).unsqueeze(0)  // (1,)
       val fieldG2 = g2Scaled.select(0, i).unsqueeze(0)  // (1,)
-      // Repeat along dim=1 to match feaDims[i]
-      val repeatedG1 = fieldG1.repeat(1, feaDims(i))
-      val repeatedG2 = fieldG2.repeat(1, feaDims(i))
+      // Use expand to build per-field scaling tensors to avoid repeat dimension issues
+      val repeatedG1 = fieldG1.expand(1, feaDims(i))
+      val repeatedG2 = fieldG2.expand(1, feaDims(i))
       g1List += repeatedG1
       g2List += repeatedG2
     }

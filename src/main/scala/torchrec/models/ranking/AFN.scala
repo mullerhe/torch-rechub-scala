@@ -103,7 +103,8 @@ class AFN(
     val logEmbeddingsT = logEmbeddings.transpose(1, 2)  // (B, E, F)
     val wT = w.t()  // (num_fields, lnn_dim) = (F, L)
     // preAct: (batch, embed_dim, lnn_dim) = (B, E, L)
-    val preAct = torch.bmm(logEmbeddingsT, wT)
+    // Use matmul to allow broadcasting the shared weight across batch dimension
+    val preAct = torch.matmul(logEmbeddingsT, wT)
     // preActT: (batch, lnn_dim, embed_dim) = (B, L, E)
     val preActT = preAct.transpose(1, 2)
 
@@ -121,7 +122,8 @@ class AFN(
     lnnOut = dropoutLayer.forward(lnnOut)
 
     // Flatten: (batch, lnn_dim * embed_dim)
-    val lnnFlat = lnnOut.view(batchSize, lnnOutputDim.toLong)
+    // Use reshape instead of view to avoid non-contiguous tensor errors after transpose
+    val lnnFlat = lnnOut.reshape(batchSize, lnnOutputDim.toLong)
 
     // MLP
     mlp.forward(lnnFlat).squeeze(1)

@@ -57,8 +57,9 @@ class DIN(
 
       // Expand target to same sequence length
       val targetEmb = sequenceEmbedding.getSequenceEmbedding(seqFeat.name, targetIdx.toType(ScalarType.Long))
-      // targetEmb: (batch, 1, embed_dim)
-      val targetExpanded = targetEmb.unsqueeze(1).repeat(1, seqEmb.size(1), 1)
+      // Ensure targetEmb is (batch, 1, embed_dim) or (batch, embed_dim) then expand to (batch, seq_len, embed_dim)
+      val targetFlat = if (targetEmb.dim() == 3L) targetEmb.squeeze(1) else if (targetEmb.dim() == 2L) targetEmb else targetEmb.mean(1)
+      val targetExpanded = targetFlat.unsqueeze(1).expand(targetFlat.size(0), seqEmb.size(1), targetFlat.size(1))
 
       // Attention
       val attended = attentionNet.forward(seqEmb, targetExpanded)

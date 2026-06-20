@@ -93,7 +93,7 @@ class LogLoss extends Metric {
     }
   }
 
-  def compute(): Float = (totalLoss / count).toFloat
+  def compute(): Float = if (count == 0) 0.0f else (totalLoss / count).toFloat
 
   def reset(): Unit = {
     totalLoss = 0.0
@@ -130,7 +130,7 @@ class Accuracy(threshold: Float = 0.5f) extends Metric {
     }
   }
 
-  def compute(): Float = correct.toFloat / total
+  def compute(): Float = if (total == 0) 0.0f else correct.toFloat / total
 
   def reset(): Unit = {
     correct = 0

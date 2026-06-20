@@ -53,18 +53,16 @@ class DeepFM(
     sparseFeats: Map[String, Tensor],
     denseFeats: Map[String, Tensor] = Map.empty
   ): Tensor = {
-    // Get 3D embeddings for all features using forward3D: (batch, num_fields, embed_dim)
-    val allEmbeddings = embeddingLayer.forward3D(sparseFeats, sequenceFeats = Map.empty)
-    val batchSize = allEmbeddings.size(0).toInt
+    // Fetch embeddings separately for deep and FM feature sets to avoid
+    // ordering/duplication issues when deepFeatures is a subset of fmFeatures.
+    // Build per-group sparse maps preserving the feature names requested.
+    val deepSparse = deepFeatures.map(f => f.name -> sparseFeats(f.name)).toMap
+    val fmSparse = fmFeatures.map(f => f.name -> sparseFeats(f.name)).toMap
 
-    // Split embeddings into deep and fm parts
-    val numDeepFeatures = deepFeatures.size
-    val numFmFeatures = fmFeatures.size
-
-    // Deep embeddings: (batch, num_deep_features, embed_dim)
-    val deepEmbeddings = allEmbeddings.narrow(1, 0, numDeepFeatures)
-    // FM embeddings: (batch, num_fm_features, embed_dim)
-    val fmEmbeddings = allEmbeddings.narrow(1, numDeepFeatures, numFmFeatures)
+    // Get 3D embeddings per group: (batch, num_fields_in_group, embed_dim)
+    val deepEmbeddings = embeddingLayer.forward3D(deepSparse, sequenceFeats = Map.empty)
+    val fmEmbeddings = embeddingLayer.forward3D(fmSparse, sequenceFeats = Map.empty)
+    val batchSize = deepEmbeddings.size(0).toInt
 
     // First-order: linear on flattened FM embeddings
     val fmFlattened = fmEmbeddings.view(batchSize, -1)  // (batch, num_fm_features * embed_dim)

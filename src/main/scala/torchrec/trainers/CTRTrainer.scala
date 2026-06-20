@@ -39,7 +39,7 @@ class CTRTrainer(
   weightDecay: Float = 1e-6f,
   device: String = DeviceSupport.backend,
   numEpochs: Int = 10,
-  earlyStopPatience: Int = 5,
+  earlyStopPatience: Int = 500,
   verbose: Boolean = true
 ) {
   private var bestAUC = 0.0f

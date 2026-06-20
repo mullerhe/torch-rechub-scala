@@ -186,7 +186,10 @@ class DataLoader(
       }.toMap)
     } else None
 
-    Batch(sparseTensors, denseTensors, seqTensors, labels, batchTokens, batchPositions, batchTimeDiffs, batchTargets, batchItemFeats, batchTaskLabels)
+    // batchTaskLabels corresponds to the named parameter `taskLabels` in Batch.
+    // Ensure we pass it as the 11th argument (or by name) so it doesn't get bound
+    // to `negItemFeatures` by position accidentally.
+    Batch(sparseTensors, denseTensors, seqTensors, labels, batchTokens, batchPositions, batchTimeDiffs, batchTargets, batchItemFeats, negItemFeatures = None, taskLabels = batchTaskLabels)
   }
 }
 

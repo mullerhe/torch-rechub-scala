@@ -29,16 +29,33 @@ class EmbeddingLayer(
     cleaned.stripPrefix("_").stripSuffix("_")
   }
 
+  // Produce a canonical base name for a feature by stripping common prefixes
+  // like seq_, embed_, feat_ to avoid double-prefixing when building table keys.
+  private def baseName(name: String): String = {
+    if (name == null) return ""
+    val withoutPrefix = name.replaceAll("^(seq_|embed_|feat_)+", "")
+    sanitizeModuleName(withoutPrefix)
+  }
+
   // Use ModuleDictImpl like PyTorch's nn.ModuleDict
   private val embedDict = new ModuleDictImpl()
 
   // Map for direct access (mirrors the ModuleDict content)
   private val embeddingTables = mutable.Map[String, EmbeddingImpl]()
+  // Track warnings printed for unknown feature sets to avoid flooding logs
+  private val warnedMissingSparse = mutable.Set[String]()
+  private val warnedMissingSeq = mutable.Set[String]()
+  // Track warnings about invalid indices so we don't spam logs
+  private val warnedInvalidIndices = mutable.Set[String]()
+
+  private def safeDevice(t: Tensor): Device = {
+    try t.device() catch { case _: Throwable => new Device("cpu") }
+  }
 
   // Build embedding tables and register them to the Module
-  features.foreach {
+    features.foreach {
     case f: SparseFeature =>
-      val key = s"embed_${f.name}"
+      val key = s"embed_${baseName(f.name)}"
       if (!f.sharedWith.exists(name => embeddingTables.contains(name)) && !embeddingTables.contains(key)) {
         val options = new EmbeddingOptions(f.vocabSize, f.embedDim)
         f.paddingIdx.foreach { idx =>
@@ -53,7 +70,7 @@ class EmbeddingLayer(
       }
 
     case f: SequenceFeature =>
-      val key = s"embed_seq_${f.name}"
+      val key = s"embed_seq_${baseName(f.name)}"
       if (!f.sharedWith.exists(name => embeddingTables.contains(name)) && !embeddingTables.contains(key)) {
         val options = new EmbeddingOptions(f.vocabSize, f.embedDim)
         if (f.paddingIdx != 0) {
@@ -77,45 +94,105 @@ class EmbeddingLayer(
   ): Tensor = {
     val embeddingList = mutable.ListBuffer[Tensor]()
 
-    // Process sparse features
-    sparseFeats.foreach { case (name, indices) =>
-      val embedKey = s"embed_$name"
-      embeddingTables.get(embedKey).foreach { embed =>
-        val embedDev = embed.weight().device()
-        val idx1d = if (indices.dim() == 2L && indices.size(1) == 1L) {
-          indices.squeeze(1L)
-        } else {
-          indices
-        }
-        val idxOnDev = if (idx1d.device().equals(embedDev)) {
-          idx1d.toType(ScalarType.Long)
-        } else {
-          idx1d.toType(ScalarType.Long).to(embedDev, ScalarType.Long)
-        }
-        val emb = embed.forward(idxOnDev)
-        val emb3d = if (emb.dim() == 2L) emb.unsqueeze(1L) else emb
-        embeddingList += emb3d
+    // Filter incoming features to only those we have tables for, avoid noisy per-feature warnings
+    val filteredSparse = sparseFeats.filter { case (name, _) => embeddingTables.contains(s"embed_${baseName(name)}") }
+    val missingSparse = sparseFeats.keySet -- filteredSparse.keySet
+    if (missingSparse.nonEmpty) {
+      val key = missingSparse.mkString(",")
+      if (!warnedMissingSparse.contains(key)) {
+        System.err.println(s"[WARNING] Ignoring unknown sparse features: ${missingSparse.mkString(", ")}. Available tables: ${embeddingTables.keys.mkString(", ")}")
+        warnedMissingSparse += key
       }
     }
 
-    // Process sequence features
-    sequenceFeats.foreach { case (name, indices) =>
-      val embedKey = s"embed_seq_$name"
+    // Process sparse features that we actually have tables for
+    filteredSparse.foreach { case (name, indices) =>
+      val embedKey = s"embed_${baseName(name)}"
       embeddingTables.get(embedKey).foreach { embed =>
-        val embedDev = embed.weight().device()
-        val idxOnDev = if (indices.device().equals(embedDev)) {
-          indices.toType(ScalarType.Long)
-        } else {
-          indices.toType(ScalarType.Long).to(embedDev, ScalarType.Long)
+        try {
+          val embedDev = embed.weight().device()
+          val idx1d = if (indices.dim() == 2L && indices.size(1) == 1L) {
+            indices.squeeze(1L)
+          } else {
+            indices
+          }
+          val idxDev = safeDevice(idx1d)
+          var idxOnDev = if (idxDev.equals(embedDev)) {
+            idx1d.toType(ScalarType.Long)
+          } else {
+            idx1d.toType(ScalarType.Long).to(embedDev, ScalarType.Long)
+          }
+          // Defensive: clamp indices into [0, num_embeddings-1] to avoid device-side gather OOB
+          try {
+            val numEmb = embed.weight().size(0)
+            val maxIdx = numEmb - 1
+            val anyLow = idxOnDev.lt(new Scalar(0L)).any().item().toDouble
+            val anyHigh = idxOnDev.gt(new Scalar(maxIdx)).any().item().toDouble
+            if ((anyLow != 0.0 || anyHigh != 0.0) && !warnedInvalidIndices.contains(embedKey)) {
+              System.err.println(s"[WARNING] EmbeddingLayer: indices for '$embedKey' contain out-of-range values. Clamping to [0,$maxIdx].")
+              warnedInvalidIndices += embedKey
+            }
+            idxOnDev = idxOnDev.clamp(min = new ScalarOptional(new Scalar(0L)), max = new ScalarOptional(new Scalar(maxIdx)))
+          } catch { case _: Throwable => /* ignore clamp failures and proceed */ }
+          val emb = embed.forward(idxOnDev)
+          val emb3d = if (emb.dim() == 2L) emb.unsqueeze(1L) else emb
+          embeddingList += emb3d
+        } catch {
+          case e: Exception =>
+            System.err.println(s"[WARNING] Failed to embed feature '$name': ${e.getMessage}")
         }
-        val emb = embed.forward(idxOnDev)
-        val pooledEmb = poolSequence(emb, idxOnDev, "mean")
-        embeddingList += pooledEmb
+      }
+    }
+
+    // Filter and process sequence features
+    val filteredSeq = sequenceFeats.filter { case (name, _) => embeddingTables.contains(s"embed_seq_${baseName(name)}") }
+    val missingSeq = sequenceFeats.keySet -- filteredSeq.keySet
+    if (missingSeq.nonEmpty) {
+      val key = missingSeq.mkString(",")
+      if (!warnedMissingSeq.contains(key)) {
+        System.err.println(s"[WARNING] Ignoring unknown sequence features: ${missingSeq.mkString(", ")}. Available tables: ${embeddingTables.keys.mkString(", ")}")
+        warnedMissingSeq += key
+      }
+    }
+    filteredSeq.foreach { case (name, indices) =>
+      val embedKey = s"embed_seq_${baseName(name)}"
+      embeddingTables.get(embedKey).foreach { embed =>
+        try {
+          val embedDev = embed.weight().device()
+          val idxDev = safeDevice(indices)
+          var idxOnDev = if (idxDev.equals(embedDev)) {
+            indices.toType(ScalarType.Long)
+          } else {
+            indices.toType(ScalarType.Long).to(embedDev, ScalarType.Long)
+          }
+          // Defensive clamp for sequence indices as well
+          try {
+            val numEmb = embed.weight().size(0)
+            val maxIdx = numEmb - 1
+            val anyLow = idxOnDev.lt(new Scalar(0L)).any().item().toDouble
+            val anyHigh = idxOnDev.gt(new Scalar(maxIdx)).any().item().toDouble
+            if ((anyLow != 0.0 || anyHigh != 0.0) && !warnedInvalidIndices.contains(embedKey)) {
+              System.err.println(s"[WARNING] EmbeddingLayer: sequence indices for '$embedKey' contain out-of-range values. Clamping to [0,$maxIdx].")
+              warnedInvalidIndices += embedKey
+            }
+            idxOnDev = idxOnDev.clamp(min = new ScalarOptional(new Scalar(0L)), max = new ScalarOptional(new Scalar(maxIdx)))
+          } catch { case _: Throwable => }
+          val emb = embed.forward(idxOnDev)
+          val pooledEmb = poolSequence(emb, idxOnDev, "mean")
+          embeddingList += pooledEmb
+        } catch {
+          case e: Exception =>
+            System.err.println(s"[WARNING] Failed to embed sequence feature '$name': ${e.getMessage}")
+        }
       }
     }
 
     if (embeddingList.isEmpty) {
-      throw new IllegalArgumentException("No embeddings found for given features")
+      val availableTables = embeddingTables.keys.mkString(", ")
+      val inputFeats = (sparseFeats.keys ++ sequenceFeats.keys).mkString(", ")
+      throw new IllegalArgumentException(
+        s"No embeddings found for given features. Input features: [$inputFeats], Available embedding tables: [$availableTables]"
+      )
     }
 
     val batchSize = embeddingList.head.size(0).toInt
@@ -125,7 +202,20 @@ class EmbeddingLayer(
     // Use GPU cat for concatenation - much more efficient than manual CPU copy
     val embeddingsArr = new Array[Tensor](embeddingList.size)
     embeddingList.copyToArray(embeddingsArr)
-    val concatenated = torch.cat(new TensorVector(embeddingsArr.toSeq*), 1L)
+    // Ensure all embeddings are on the same device before concatenation
+    val targetDev = safeDevice(embeddingList.head)
+//    println(s"[EmbeddingLayer] concatenating ${embeddingsArr.length} embeddings on targetDev=$targetDev")
+    val vec = new TensorVector()
+    var idx = 0
+    embeddingsArr.foreach { t =>
+      try {
+//        println(s"[EmbeddingLayer] embedding[$idx] device=${t.device()} shape=${t.sizes().toString}")
+      } catch { case _: Throwable => println(s"[EmbeddingLayer] embedding[$idx] <error obtaining device/shape>") }
+      val onDev = if (safeDevice(t).equals(targetDev)) t else t.to(targetDev, t.dtype())
+      vec.push_back(onDev)
+      idx += 1
+    }
+    val concatenated = torch.cat(vec, 1L)
     val flattened = concatenated.view(batchSize.toLong, totalDim)
     if (squeeze && embeddingList.size == 1) {
       flattened.squeeze(1L)
@@ -146,7 +236,7 @@ class EmbeddingLayer(
 
     // Process sparse features
     sparseFeats.foreach { case (name, indices) =>
-      val embedKey = s"embed_$name"
+      val embedKey = s"embed_${baseName(name)}"
       embeddingTables.get(embedKey).foreach { embed =>
         val embedDev = embed.weight().device()
         val idx1d = if (indices.dim() == 2L && indices.size(1) == 1L) {
@@ -154,11 +244,23 @@ class EmbeddingLayer(
         } else {
           indices
         }
-        val idxOnDev = if (idx1d.device().equals(embedDev)) {
+        val idxDev = safeDevice(idx1d)
+        var idxOnDev = if (idxDev.equals(embedDev)) {
           idx1d.toType(ScalarType.Long)
         } else {
           idx1d.toType(ScalarType.Long).to(embedDev, ScalarType.Long)
         }
+        try {
+          val numEmb = embed.weight().size(0)
+          val maxIdx = numEmb - 1
+          val anyLow = idxOnDev.lt(new Scalar(0L)).any().item().toDouble
+          val anyHigh = idxOnDev.gt(new Scalar(maxIdx)).any().item().toDouble
+          if ((anyLow != 0.0 || anyHigh != 0.0) && !warnedInvalidIndices.contains(embedKey)) {
+            System.err.println(s"[WARNING] EmbeddingLayer.forward3D: indices for '$embedKey' contain out-of-range values. Clamping to [0,$maxIdx].")
+            warnedInvalidIndices += embedKey
+          }
+          idxOnDev = idxOnDev.clamp(min = new ScalarOptional(new Scalar(0L)), max = new ScalarOptional(new Scalar(maxIdx)))
+        } catch { case _: Throwable => }
         val emb = embed.forward(idxOnDev)
         val emb3d = if (emb.dim() == 2L) emb.unsqueeze(1L) else emb
         embeddingList += emb3d
@@ -167,14 +269,26 @@ class EmbeddingLayer(
 
     // Process sequence features
     sequenceFeats.foreach { case (name, indices) =>
-      val embedKey = s"embed_seq_$name"
+      val embedKey = s"embed_seq_${baseName(name)}"
       embeddingTables.get(embedKey).foreach { embed =>
         val embedDev = embed.weight().device()
-        val idxOnDev = if (indices.device().equals(embedDev)) {
+        val idxDev = safeDevice(indices)
+        var idxOnDev = if (idxDev.equals(embedDev)) {
           indices.toType(ScalarType.Long)
         } else {
           indices.toType(ScalarType.Long).to(embedDev, ScalarType.Long)
         }
+        try {
+          val numEmb = embed.weight().size(0)
+          val maxIdx = numEmb - 1
+          val anyLow = idxOnDev.lt(new Scalar(0L)).any().item().toDouble
+          val anyHigh = idxOnDev.gt(new Scalar(maxIdx)).any().item().toDouble
+          if ((anyLow != 0.0 || anyHigh != 0.0) && !warnedInvalidIndices.contains(embedKey)) {
+            System.err.println(s"[WARNING] EmbeddingLayer.forward3D: sequence indices for '$embedKey' contain out-of-range values. Clamping to [0,$maxIdx].")
+            warnedInvalidIndices += embedKey
+          }
+          idxOnDev = idxOnDev.clamp(min = new ScalarOptional(new Scalar(0L)), max = new ScalarOptional(new Scalar(maxIdx)))
+        } catch { case _: Throwable => }
         val emb = embed.forward(idxOnDev)
         val pooledEmb = poolSequence(emb, idxOnDev, "mean")
         val emb3d = if (pooledEmb.dim() == 2L) pooledEmb.unsqueeze(1L) else pooledEmb
@@ -189,7 +303,20 @@ class EmbeddingLayer(
     // Stack embeddings along field dimension: (batch, num_fields, embed_dim)
     val embeddingsArr = new Array[Tensor](embeddingList.size)
     embeddingList.copyToArray(embeddingsArr)
-    torch.cat(new TensorVector(embeddingsArr.toSeq*), 1L)
+    // Align devices
+    val targetDev = embeddingList.head.device()
+//    println(s"[EmbeddingLayer.forward3D] concatenating ${embeddingsArr.length} embeddings on targetDev=$targetDev")
+    val vec = new TensorVector()
+    var j = 0
+    embeddingsArr.foreach { t =>
+      try {
+//        println(s"[EmbeddingLayer.forward3D] embedding[$j] device=${t.device()} shape=${t.sizes().toString}")
+      } catch { case _: Throwable => println(s"[EmbeddingLayer.forward3D] embedding[$j] <error obtaining device/shape>") }
+      val onDev = if (t.device().equals(targetDev)) t else t.to(targetDev, t.dtype())
+      vec.push_back(onDev)
+      j += 1
+    }
+    torch.cat(vec, 1L)
   }
 
   private def poolSequence(emb: Tensor, indices: Tensor, pooling: String): Tensor = {
@@ -221,7 +348,7 @@ class EmbeddingLayer(
 
   /** Get embedding for a single feature */
   def getEmbedding(name: String, indices: Tensor): Tensor = {
-    val embedKey = s"embed_$name"
+    val embedKey = s"embed_${baseName(name)}"
     embeddingTables.get(embedKey) match {
       case Some(embed) =>
         val idx1d = if (indices.dim() == 2L && indices.size(1) == 1L) {
@@ -232,11 +359,22 @@ class EmbeddingLayer(
           indices
         }
         val embedDev = embed.weight().device()
-        val idxOnDev = if (idx1d.device().equals(embedDev)) {
+        var idxOnDev = if (idx1d.device().equals(embedDev)) {
           idx1d.toType(ScalarType.Long)
         } else {
           idx1d.toType(ScalarType.Long).to(embedDev, ScalarType.Long)
         }
+        try {
+          val numEmb = embed.weight().size(0)
+          val maxIdx = numEmb - 1
+          val anyLow = idxOnDev.lt(new Scalar(0L)).any().item().toDouble
+          val anyHigh = idxOnDev.gt(new Scalar(maxIdx)).any().item().toDouble
+          if ((anyLow != 0.0 || anyHigh != 0.0) && !warnedInvalidIndices.contains(embedKey)) {
+            System.err.println(s"[WARNING] EmbeddingLayer.getEmbedding: indices for '$embedKey' contain out-of-range values. Clamping to [0,$maxIdx].")
+            warnedInvalidIndices += embedKey
+          }
+          idxOnDev = idxOnDev.clamp(min = new ScalarOptional(new Scalar(0L)), max = new ScalarOptional(new Scalar(maxIdx)))
+        } catch { case _: Throwable => }
         embed.forward(idxOnDev)
       case None =>
         throw new IllegalArgumentException(s"No embedding table for: $name")
@@ -245,14 +383,27 @@ class EmbeddingLayer(
 
   /** Get embedding for a single sequence feature. */
   def getSequenceEmbedding(name: String, indices: Tensor): Tensor = {
-    val embedKey = s"embed_seq_$name"
+    val embedKey = s"embed_seq_${baseName(name)}"
     embeddingTables.get(embedKey) match {
       case Some(embed) =>
         val embedDev = embed.weight().device()
-        val idxOnDev = if (indices.device().equals(embedDev)) {
+        var idxOnDev = if (indices.device().equals(embedDev)) {
           indices.toType(ScalarType.Long)
         } else {
           indices.toType(ScalarType.Long).to(embedDev, ScalarType.Long)
+        }
+        // Defensive clamping: ensure all indices are within [0, num_embeddings-1]
+        // to prevent device-side assert in the CUDA gather kernel.
+        val numEmb = embed.weight().size(0)
+        val maxIdx = numEmb - 1
+        val anyLow = idxOnDev.lt(new Scalar(0L)).any().item().toDouble
+        val anyHigh = idxOnDev.gt(new Scalar(maxIdx)).any().item().toDouble
+        if (anyLow != 0.0 || anyHigh != 0.0) {
+          if (!warnedInvalidIndices.contains(embedKey)) {
+            System.err.println(s"[WARNING] EmbeddingLayer.getSequenceEmbedding: indices for '$embedKey' contain out-of-range values. Clamping to [0,$maxIdx].")
+            warnedInvalidIndices += embedKey
+          }
+          idxOnDev = idxOnDev.clamp(min = new ScalarOptional(new Scalar(0L)), max = new ScalarOptional(new Scalar(maxIdx)))
         }
         embed.forward(idxOnDev)
       case None =>
@@ -272,13 +423,26 @@ class EmbeddingLayer(
 
     // Process sequence features without pooling
     sequenceFeats.foreach { case (name, indices) =>
-      val embedKey = s"embed_seq_$name"
+      val embedKey = s"embed_seq_${baseName(name)}"
       embeddingTables.get(embedKey).foreach { embed =>
         val embedDev = embed.weight().device()
-        val idxOnDev = if (indices.device().equals(embedDev)) {
+        var idxOnDev = if (indices.device().equals(embedDev)) {
           indices.toType(ScalarType.Long)
         } else {
           indices.toType(ScalarType.Long).to(embedDev, ScalarType.Long)
+        }
+        // Defensive clamping: ensure all indices are within [0, num_embeddings-1]
+        // to prevent device-side assert in the CUDA gather kernel.
+        val numEmb = embed.weight().size(0)
+        val maxIdx = numEmb - 1
+        val anyLow = idxOnDev.lt(new Scalar(0L)).any().item().toDouble
+        val anyHigh = idxOnDev.gt(new Scalar(maxIdx)).any().item().toDouble
+        if (anyLow != 0.0 || anyHigh != 0.0) {
+          if (!warnedInvalidIndices.contains(embedKey)) {
+            System.err.println(s"[WARNING] EmbeddingLayer.forwardSeqRaw: sequence indices for '$embedKey' contain out-of-range values. Clamping to [0,$maxIdx].")
+            warnedInvalidIndices += embedKey
+          }
+          idxOnDev = idxOnDev.clamp(min = new ScalarOptional(new Scalar(0L)), max = new ScalarOptional(new Scalar(maxIdx)))
         }
         val emb = embed.forward(idxOnDev)
         embeddingList += emb
@@ -295,11 +459,18 @@ class EmbeddingLayer(
     embeddingList.copyToArray(embeddingsArr)
 
     if (embeddingList.size == 1) {
-      // Single feature: add a dimension to make it 4D
-      embeddingsArr.head.unsqueeze(1)
+      // Single feature: return (batch, seqLen, embedDim)
+      embeddingsArr.head
     } else {
-      // Multiple sequence features: concatenate along field dim (dim=1), keeping sequence dim
-      torch.cat(new TensorVector(embeddingsArr.toSeq*), 1L)
+      // Multiple sequence features: concatenate along the embedding dimension (last dim)
+      // so result is (batch, seqLen, num_features * embedDim)
+      val targetDev = embeddingList.head.device()
+      val vec = new TensorVector()
+      embeddingsArr.foreach { t =>
+        val onDev = if (t.device().equals(targetDev)) t else t.to(targetDev, t.dtype())
+        vec.push_back(onDev)
+      }
+      torch.cat(vec, 2)
     }
   }
 

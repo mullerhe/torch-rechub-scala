@@ -27,7 +27,7 @@ class MatchTrainer(
   mode: Int = 0,
   temperature: Float = 0.07f,
   numEpochs: Int = 10,
-  earlyStopPatience: Int = 5,
+  earlyStopPatience: Int = 500,
   verbose: Boolean = true
 ) {
   private val optimizer = new Adam(model.parameters(), new AdamOptions(learningRate.toDouble))
@@ -222,7 +222,9 @@ class MatchTrainer(
                 val tokensOpt = batch.tokens
                 if (tokensOpt.nonEmpty) {
                   val tokens = tokensOpt.get
-                  val seqFeatsMap = Map("seq" -> tokens)
+                  // Prefer explicit sequenceFeatures map from the batch if available,
+                  // otherwise fall back to a default key used by pipelines ("seq_feat").
+                  val seqFeatsMap = if (batch.sequenceFeatures.nonEmpty) batch.sequenceFeatures else Map("seq_feat" -> tokens)
                   val userEmb = dien.forward(userFeats, seqFeatsMap)
                   val itemEmb = if (itemFeats.nonEmpty) {
                     itemFeats.values.head

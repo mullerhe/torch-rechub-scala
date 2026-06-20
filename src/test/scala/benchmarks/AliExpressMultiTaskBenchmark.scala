@@ -192,7 +192,7 @@ object AliExpressMultiTaskBenchmark {
 
       val trainer = new MTLTrainer(
         model, taskNames, 0.001f, 1e-5f, device = device,
-        numEpochs = 2, earlyStopPatience = 1, verbose = true
+        numEpochs = 300, earlyStopPatience = 300, verbose = true
       )
       trainer.fit(trainLoader, Some(valLoader))
 
@@ -238,7 +238,7 @@ object AliExpressMultiTaskBenchmark {
 
       val trainer = new MTLTrainer(
         model, taskNames, 0.001f, 1e-5f, device = device,
-        numEpochs = 2, earlyStopPatience = 1, verbose = true
+        numEpochs = 300, earlyStopPatience = 300, verbose = true
       )
       trainer.fit(trainLoader, Some(valLoader))
 
@@ -286,7 +286,7 @@ object AliExpressMultiTaskBenchmark {
 
       val trainer = new MTLTrainer(
         model, taskNames, 0.001f, 1e-5f, device = device,
-        numEpochs = 2, earlyStopPatience = 1, verbose = true
+        numEpochs = 300, earlyStopPatience = 300, verbose = true
       )
       trainer.fit(trainLoader, Some(valLoader))
 
@@ -331,7 +331,7 @@ object AliExpressMultiTaskBenchmark {
 
       val trainer = new MTLTrainer(
         model, taskNames, 0.001f, 1e-5f, device = device,
-        numEpochs = 2, earlyStopPatience = 1, verbose = true
+        numEpochs = 300, earlyStopPatience = 300, verbose = true
       )
       trainer.fit(trainLoader, Some(valLoader))
 

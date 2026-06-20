@@ -10,7 +10,7 @@ object RunCensusReplicaBenchmark {
     val p = PythonRankingReplicaSupport.parseArgs(args)
     val datasetPath = p.getOrElse("dataset_path", "/home/muller/IdeaProjects/torch-rechub/examples/ranking/data/census-income")
     val modelName = p.getOrElse("model_name", "sharedbottom").toLowerCase
-    val epoch = p.getOrElse("epoch", "2").toInt
+    val epoch = p.getOrElse("epoch", "200").toInt
     val batchSize = p.getOrElse("batch_size", "1024").toInt
     val lr = p.getOrElse("learning_rate", "0.001").toFloat
     val wd = p.getOrElse("weight_decay", "1e-4").toFloat
@@ -97,7 +97,7 @@ object RunCensusReplicaBenchmark {
         )
     }
 
-    val trainer = new MTLTrainer(model, taskNames = taskNames, learningRate = lr, weightDecay = wd, device = device, numEpochs = epoch, earlyStopPatience = 8, verbose = true)
+    val trainer = new MTLTrainer(model, taskNames = taskNames, learningRate = lr, weightDecay = wd, device = device, numEpochs = epoch, earlyStopPatience = 800, verbose = true)
     trainer.fit(trainLoader, Some(validLoader))
     val metrics = trainer.evaluate(testLoader)
 

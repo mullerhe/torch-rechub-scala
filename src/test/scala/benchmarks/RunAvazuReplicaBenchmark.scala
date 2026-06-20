@@ -10,7 +10,7 @@ object RunAvazuReplicaBenchmark {
     val p = PythonRankingReplicaSupport.parseArgs(args)
     val datasetPath = p.getOrElse("dataset_path", "/home/muller/IdeaProjects/torch-rechub/examples/ranking/data/avazu")
     val modelName = p.getOrElse("model_name", "widedeep").toLowerCase
-    val epoch = p.getOrElse("epoch", "2").toInt
+    val epoch = p.getOrElse("epoch", "200").toInt
     val batchSize = p.getOrElse("batch_size", "2048").toInt
     val lr = p.getOrElse("learning_rate", "0.001").toFloat
     val wd = p.getOrElse("weight_decay", "1e-5").toFloat
@@ -32,7 +32,7 @@ object RunAvazuReplicaBenchmark {
         new WideDeep(data.features, embedDim = 16, mlpDims = List(256L, 128L), dropout = 0.2f, device = device)
     }
 
-    val trainer = new CTRTrainer(model, learningRate = lr, weightDecay = wd, device = device, numEpochs = epoch, earlyStopPatience = 4, verbose = true)
+    val trainer = new CTRTrainer(model, learningRate = lr, weightDecay = wd, device = device, numEpochs = epoch, earlyStopPatience = 400, verbose = true)
     trainer.fit(trainLoader, Some(validLoader))
     val metrics = trainer.evaluate(testLoader)
 

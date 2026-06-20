@@ -22,8 +22,8 @@ object RunAdultNotebookOMoEReplica {
     val csvPath = params.getOrElse("dataset", "/home/muller/IdeaProjects/torch-rechub-scala/src/main/resources/adult.csv")
     val seed = params.getOrElse("seed", "2024").toInt
     val batchSize = params.getOrElse("batch_size", "1024").toInt
-    val epochs = params.getOrElse("epochs", "2").toInt
-    val device = params.getOrElse("device", "cpu")
+    val epochs = params.getOrElse("epochs", "200").toInt
+    val device = params.getOrElse("device", "cuda")
 
     val raw = DataFrame.readCSV(csvPath)
     require(raw.numRows > 1000, s"Unexpectedly small dataset: ${raw.numRows}")
@@ -89,7 +89,7 @@ object RunAdultNotebookOMoEReplica {
       weightDecay = 1e-5f,
       device = device,
       numEpochs = epochs,
-      earlyStopPatience = 3,
+      earlyStopPatience = 300,
       verbose = true
     )
 

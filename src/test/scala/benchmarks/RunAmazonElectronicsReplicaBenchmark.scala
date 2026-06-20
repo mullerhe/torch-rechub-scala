@@ -11,7 +11,7 @@ object RunAmazonElectronicsReplicaBenchmark {
   def main(args: Array[String]): Unit = {
     val p = PythonRankingReplicaSupport.parseArgs(args)
     val datasetPath = p.getOrElse("dataset_path", "/home/muller/IdeaProjects/torch-rechub/examples/ranking/data/amazon-electronics/amazon_electronics_sample.csv")
-    val epoch = p.getOrElse("epoch", "2").toInt
+    val epoch = p.getOrElse("epoch", "200").toInt
     val batchSize = p.getOrElse("batch_size", "1024").toInt
     val lr = p.getOrElse("learning_rate", "0.001").toFloat
     val device = p.getOrElse("device", DeviceSupport.backend)
@@ -51,7 +51,7 @@ object RunAmazonElectronicsReplicaBenchmark {
     val validLoader = new DataLoader(validCtr, batchSize = batchSize, shuffle = false, device = device)
     val testLoader = new DataLoader(testCtr, batchSize = batchSize, shuffle = false, device = device)
 
-    val trainer = new CTRTrainer(model, learningRate = lr, device = device, numEpochs = epoch, earlyStopPatience = 2, verbose = true)
+    val trainer = new CTRTrainer(model, learningRate = lr, device = device, numEpochs = epoch, earlyStopPatience = 200, verbose = true)
     trainer.fit(trainLoader, Some(validLoader))
     val metrics = trainer.evaluate(testLoader)
     val auc = metrics.getOrElse("AUC", 0.0f)

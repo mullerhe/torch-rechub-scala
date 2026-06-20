@@ -228,7 +228,7 @@ object AliCCPMultiTaskBenchmark {
 
       val trainer = new MTLTrainer(
         model, taskNames, 0.001f, 1e-4f, device = device,
-        numEpochs = 3, earlyStopPatience = 10, verbose = true
+        numEpochs = 300, earlyStopPatience = 300, verbose = true
       )
       trainer.fit(trainLoader, Some(valLoader))
 
@@ -278,7 +278,7 @@ object AliCCPMultiTaskBenchmark {
 
       val trainer = new MTLTrainer(
         model, taskNames, 0.001f, 1e-4f, device = device,
-        numEpochs = 3, earlyStopPatience = 10, verbose = true
+        numEpochs = 300, earlyStopPatience = 300, verbose = true
       )
       trainer.fit(trainLoader, Some(valLoader))
 
@@ -332,7 +332,7 @@ object AliCCPMultiTaskBenchmark {
 
       val trainer = new MTLTrainer(
         model, taskNames, 0.001f, 1e-4f, device = device,
-        numEpochs = 3, earlyStopPatience = 10, verbose = true
+        numEpochs = 300, earlyStopPatience = 300, verbose = true
       )
       trainer.fit(trainLoader, Some(valLoader))
 
@@ -387,7 +387,7 @@ object AliCCPMultiTaskBenchmark {
 
       val trainer = new MTLTrainer(
         model, taskNames, 0.001f, 1e-4f, device = device,
-        numEpochs = 3, earlyStopPatience = 10, verbose = true
+        numEpochs = 300, earlyStopPatience = 300, verbose = true
       )
       trainer.fit(trainLoader, Some(valLoader))
 
@@ -436,7 +436,7 @@ object AliCCPMultiTaskBenchmark {
 
       val trainer = new MTLTrainer(
         model, taskNames, 0.001f, 1e-4f, device = device,
-        numEpochs = 3, earlyStopPatience = 10, verbose = true
+        numEpochs = 300, earlyStopPatience = 300, verbose = true
       )
       trainer.fit(trainLoader, Some(valLoader))
 

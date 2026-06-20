@@ -46,7 +46,7 @@ object RunGradNormReplicaBenchmark {
       weightDecay = wd,
       device = device,
       numEpochs = epoch,
-      earlyStopPatience = 3,
+      earlyStopPatience = 30,
       taskWeights = Some(Map("conversion" -> 1.5f, "click" -> 1.0f)),
       verbose = true
     )

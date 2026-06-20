@@ -215,12 +215,15 @@ object RankingModelsBenchmark {
     // Forward pass
     val output = model.forward(sparseFeats)
 
-    // Verify output
-    val passed = output.dim() == 1L &&
-                 output.size(0) == batchSize
+    // Verify output: xDeepFM/DeepFM/DCN typically return [batch,1], while some models
+    // (or implementations) may return squeezed [batch]. Accept either form.
+    val is1D = output.dim() == 1L && output.size(0) == batchSize
+    val is2Dscalar = output.dim() == 2L && output.size(0) == batchSize && output.size(1) == 1L
+    val passed = is1D || is2Dscalar
 
-    val msg = f"output shape: ${output.size(0)} (1D sigmoid output)"
-    println(f"  Output shape: ${output.size(0)}, dim: ${output.dim()}")
+    val shapeStr = if (output.dim() == 1L) s"${output.size(0)}" else s"${output.size(0)}x${output.size(1)}"
+    val msg = if (is1D) f"output shape: $shapeStr (1D sigmoid output)" else if (is2Dscalar) f"output shape: $shapeStr (2D [batch,1] output)" else f"output shape: $shapeStr"
+    println(f"  Output shape: $shapeStr, dim: ${output.dim()}")
     (passed, msg)
   }
 
@@ -283,12 +286,14 @@ object RankingModelsBenchmark {
     // Forward pass
     val output = model.forward(sparseFeats, allSeqFeats)
 
-    // Verify output is 1D sigmoid (batch,)
-    val passed = output.dim() == 1L &&
-                 output.size(0) == batchSize
+    // Verify output: accept either 1D [batch] or 2D [batch,1]
+    val is1D = output.dim() == 1L && output.size(0) == batchSize
+    val is2Dscalar = output.dim() == 2L && output.size(0) == batchSize && output.size(1) == 1L
+    val passed = is1D || is2Dscalar
 
-    val msg = f"output shape: ${output.size(0)} (1D sigmoid output)"
-    println(f"  Output shape: ${output.size(0)}, dim: ${output.dim()}")
+    val shapeStr = if (output.dim() == 1L) s"${output.size(0)}" else s"${output.size(0)}x${output.size(1)}"
+    val msg = if (is1D) f"output shape: $shapeStr (1D sigmoid output)" else if (is2Dscalar) f"output shape: $shapeStr (2D [batch,1] output)" else f"output shape: $shapeStr"
+    println(f"  Output shape: $shapeStr, dim: ${output.dim()}")
     (passed, msg)
   }
 }

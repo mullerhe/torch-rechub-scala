@@ -177,9 +177,11 @@ class EmbeddingLayer(
             }
             idxOnDev = idxOnDev.clamp(min = new ScalarOptional(new Scalar(0L)), max = new ScalarOptional(new Scalar(maxIdx)))
           } catch { case _: Throwable => }
-          val emb = embed.forward(idxOnDev)
-          val pooledEmb = poolSequence(emb, idxOnDev, "mean")
-          embeddingList += pooledEmb
+           val emb = embed.forward(idxOnDev)
+           val pooledEmb = poolSequence(emb, idxOnDev, "mean")
+           // Ensure sequence pooled embeddings have shape (batch, 1, embedDim)
+           val emb3d = if (pooledEmb.dim() == 2L) pooledEmb.unsqueeze(1L) else pooledEmb
+           embeddingList += emb3d
         } catch {
           case e: Exception =>
             System.err.println(s"[WARNING] Failed to embed sequence feature '$name': ${e.getMessage}")
@@ -216,12 +218,31 @@ class EmbeddingLayer(
       idx += 1
     }
     val concatenated = torch.cat(vec, 1L)
-    val flattened = concatenated.view(batchSize.toLong, totalDim)
-    if (squeeze && embeddingList.size == 1) {
-      flattened.squeeze(1L)
-    } else {
-      flattened
+    // Defensive reshape: sometimes individual embeddings may carry an unexpected
+    // extra dimension (e.g. sequence pooling returned flattened values) which
+    // causes concatenated.numel() != batchSize * totalDim and leads to a
+    // confusing view/reshape error at runtime. Compute the real per-batch
+    // feature width from the actual number of elements when possible so the
+    // library is more robust to upstream shape variations and gives better
+    // diagnostic output.
+    val actualNumel = concatenated.numel().toLong
+    val expectedNumel = batchSize.toLong * totalDim.toLong
+    val finalTotalDim = if (actualNumel % batchSize.toLong == 0L) (actualNumel / batchSize.toLong).toInt else totalDim
+    if (actualNumel != expectedNumel) {
+      try { System.err.println(s"[EmbeddingLayer DEBUG] concatenated.numel()=$actualNumel expected=$expectedNumel; falling back to per-batch dim=$finalTotalDim") } catch { case _: Throwable => () }
     }
+    val flattened = try {
+      concatenated.contiguous().view(batchSize.toLong, finalTotalDim)
+    } catch {
+      case e: Throwable =>
+        // Provide a clearer error message with shapes of all embeddings to aid debugging
+        try {
+          val shapes = embeddingList.map(e => if (e == null) "null" else try e.sizes().toString catch { case _: Throwable => "<unknown>" }).mkString(",")
+          System.err.println(s"[EmbeddingLayer ERROR] Failed to view concatenated into (batch=$batchSize, dim=$finalTotalDim). concatenated.sizes=${concatenated.sizes()} embeddingShapes=[$shapes]")
+        } catch { case _: Throwable => () }
+        throw e
+    }
+    if (squeeze && embeddingList.size == 1) flattened.squeeze(1L) else flattened
   }
 
   /**

@@ -89,19 +89,25 @@ class RelativeBucketedTimeAndPositionBias(
       require(seqLen <= maxSeqLen, s"seq_len ($seqLen) exceeds max_seq_len ($maxSeqLen)")
       seqLen
     }
-    val device = if (timeDiffs.isDefined) timeDiffs.get.device() else posW.device()
+    // Ensure all bias computations occur on the same device as the stored parameters
+    // (posW/tsW). This avoids CPU/CUDA device-mismatch when callers pass in
+    // timeDiffs that live on a different device.
+    val paramDevice = posW.device()
 
-    val positions = torch.arange(new  Scalar(L.toLong), new TensorOptions().dtype(new ScalarTypeOptional(ScalarType.Long)).device(new DeviceOptional(new Device(device))))
+    val positions = torch.arange(new  Scalar(L.toLong), new TensorOptions().dtype(new ScalarTypeOptional(ScalarType.Long)).device(new DeviceOptional(new Device(paramDevice))))
     val relPosIdx = positions.unsqueeze(0).sub(positions.unsqueeze(1)).add(new Scalar(maxSeqLen - 1))
     val posBias = posW.index(new TensorIndexVector(new TensorIndex(relPosIdx))).permute(2, 0, 1)
 
     if (timeDiffs.isEmpty) {
       posBias.unsqueeze(0)
     } else {
-      val td = timeDiffs.get
+      // Move incoming time diffs to the parameter device before bucketing so
+      // subsequent indexing/ops produce tensors on the same device.
+      val tdRaw = timeDiffs.get
+      val td = tdRaw.to(paramDevice, ScalarType.Float)
       val dtPairwise = td.unsqueeze(2).sub(td.unsqueeze(1))
       val timeBuckets = bucketizeTime(dtPairwise)
-      val timeBias = tsW.index(new TensorIndexVector(new TensorIndex(timeBuckets)))
+      val timeBias = tsW.index(new TensorIndexVector(new TensorIndex(timeBuckets))).to(paramDevice, ScalarType.Float)
       val timeBiasPermuted = timeBias.permute(0, 3, 1, 2)
       posBias.unsqueeze(0).add(timeBiasPermuted)
     }

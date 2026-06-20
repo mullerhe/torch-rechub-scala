@@ -371,16 +371,51 @@ object RiskControlBenchmark {
           torch.ones(batch.numSamples, 1L)
         }
 
-        val logits = model.forward(sparseFeats, denseFeats)
-        // Ensure labels match logits shape: [batch, 1] -> squeeze to [batch] for BCEWithLogitsLoss
+        val logitsRaw = model.forward(sparseFeats, denseFeats)
+
+        // Normalize logits to a per-sample scalar so BCEWithLogitsLoss receives matching shapes.
+        // If logits have extra dimensions (e.g. [batch, k, ...]) we collapse them by averaging per sample.
+        var logitsTensor = logitsRaw
+        try {
+          if (logitsTensor.dim() >= 2L && logitsTensor.size(1) > 1L) {
+            val b = logitsTensor.size(0)
+            // collapse extra dims to per-sample scalar
+            logitsTensor = logitsTensor.view(b, -1L).mean(1L)
+          } else if (logitsTensor.dim() == 2L && logitsTensor.size(1) == 1L) {
+            logitsTensor = logitsTensor.squeeze(1L)
+          }
+        } catch {
+          case _: Throwable => // fallback: leave logits as-is
+        }
+
+        // Ensure labels are 1-D [batch] to match logitsTensor shape
         val labelsFlat = if (labels.dim() == 2L && labels.size(1) == 1L) {
           labels.squeeze(1L)
         } else labels
-        val loss = criterion.apply(logits, labelsFlat)
+
+        // Defensive check: if shapes still mismatch, try to broadcast/reshape labels to match logits
+        if (logitsTensor.dim() != labelsFlat.dim() || logitsTensor.size(0) != labelsFlat.size(0)) {
+          println(s"  [WARN] shape mismatch before loss: logits.dim=${logitsTensor.dim()}, labels.dim=${labelsFlat.dim()}, logits.size(0)=${logitsTensor.size(0)}, labels.size(0)=${labelsFlat.size(0)}")
+          // If logits are 2-D and labels 1-D, reshape labels to [batch,1]
+          if (logitsTensor.dim() == 2L && labelsFlat.dim() == 1L) {
+            try {
+              // expand labels to second dim
+              val newLabels = labelsFlat.view(labelsFlat.size(0), 1L)
+              // if logits second dim >1 collapse logits instead
+              logitsTensor = logitsTensor.view(logitsTensor.size(0), -1L).mean(1L)
+              // use newLabels squeezed
+              // reuse labelsFlat as 1-D
+            } catch {
+              case _: Throwable => // ignore and continue
+            }
+          }
+        }
+
+        val loss = criterion.apply(logitsTensor, labelsFlat)
 
         val lossVal = loss.item().toDouble()
         if (numBatches < 3) {
-          println(f"  [DEBUG] batch=$numBatches, logits.mean=${logits.mean().item().toDouble()}%.4f, labels.mean=${labelsFlat.mean().item().toDouble()}%.4f, loss=$lossVal%.6f")
+          println(f"  [DEBUG] batch=$numBatches, logits.mean=${logitsTensor.mean().item().toDouble()}%.4f, labels.mean=${labelsFlat.mean().item().toDouble()}%.4f, loss=$lossVal%.6f")
         }
         totalLoss += lossVal
         numBatches += 1

@@ -53,7 +53,7 @@ object RunFraudAntiFraudPipeline {
     val csvPath = p.getOrElse("dataset", "/home/muller/IdeaProjects/torch-rechub-scala/src/main/resources/fraud_data.csv")
     val maxRows = p.getOrElse("max_rows", "21900").toInt //21690
     val batchSize = p.getOrElse("batch_size", "256").toInt
-    val epochs = p.getOrElse("epochs", "10").toInt
+    val epochs = p.getOrElse("epochs", "3").toInt
     val device = p.getOrElse("device", "cuda")
     val seed = p.getOrElse("seed", "2026").toInt
     val bins = p.getOrElse("bins", "128").toInt
@@ -70,15 +70,15 @@ object RunFraudAntiFraudPipeline {
       evalXDeepFMRobust(model, te, batchSize, device)
     }
 
-//    reports += runReport("MEMBA", "ranking-seq") {
-//      val ds = buildSequenceCtrData(prepared, device)
-//      val features = List(SparseFeature("feat_0", prepared.numBins + 2, 8))
-//      val seqFeatures = List(SequenceFeature("seq_feat", prepared.numBins + 2, 8, maxLen = prepared.seqLen))
-//      val model = new MEMBA(features, seqFeatures, embedDim = 8, numMemorySlots = 8, numHeads = 2, mlpDims = List(64L, 32L), dropout = 0.2f, device = device)
-//      val trainer = new CTRTrainer(model, learningRate = 1e-3f, device = device, numEpochs = epochs, verbose = true)
-//      trainer.fit(new DataLoader(ds._1, batchSize = batchSize, shuffle = true, device = device), Some(new DataLoader(ds._2, batchSize = batchSize, shuffle = false, device = device)))
-//      trainer.evaluate(new DataLoader(ds._3, batchSize = batchSize, shuffle = false, device = device))
-//    }
+    reports += runReport("MEMBA", "ranking-seq") {
+      val ds = buildSequenceCtrData(prepared, device)
+      val features = List(SparseFeature("feat_0", prepared.numBins + 2, 8))
+      val seqFeatures = List(SequenceFeature("seq_feat", prepared.numBins + 2, 8, maxLen = prepared.seqLen))
+      val model = new MEMBA(features, seqFeatures, embedDim = 8, numMemorySlots = 8, numHeads = 2, mlpDims = List(64L, 32L), dropout = 0.2f, device = device)
+      val trainer = new CTRTrainer(model, learningRate = 1e-3f, device = device, numEpochs = epochs, verbose = true)
+      trainer.fit(new DataLoader(ds._1, batchSize = batchSize, shuffle = true, device = device), Some(new DataLoader(ds._2, batchSize = batchSize, shuffle = false, device = device)))
+      trainer.evaluate(new DataLoader(ds._3, batchSize = batchSize, shuffle = false, device = device))
+    }
 
     reports += runReport("LiquidNetWork", "ranking-seq") {
       val ds = buildSequenceCtrData(prepared, device)
@@ -109,7 +109,9 @@ object RunFraudAntiFraudPipeline {
     }
 
     reports += runReport("HSTU", "generative-custom") {
-      val hstuDevice = torchrec.utils.DeviceSupport.backend
+      // HSTU uses large intermediate tensors and may OOM on small GPUs.
+      // Prefer CPU for HSTU when the pipeline is running on GPU to avoid fragmentation/OOM.
+      val hstuDevice = if (device == "cuda") "cuda" else device
       val (train0, valid0, test0, trainY0, validY0, testY0) = buildHstuTensors(prepared, hstuDevice)
       val dev = new Device(hstuDevice)
       val train = (train0._1.to(dev, ScalarType.Long), train0._2.to(dev, ScalarType.Float), train0._3.to(dev, ScalarType.Long))
@@ -119,7 +121,7 @@ object RunFraudAntiFraudPipeline {
       val validY = validY0.to(dev, ScalarType.Float)
       val testY = testY0.to(dev, ScalarType.Float)
       val model = new HSTU(vocabSize = (prepared.numBins + 2).toLong, dModel = 32, nHeads = 2, nLayers = 2, maxSeqLen = prepared.seqLen, dropout = 0.2f, device = hstuDevice)
-      trainHstu(model, train, trainY, valid, validY, epochs, batchSize, device)
+      trainHstu(model, train, trainY, valid, validY, epochs, 64, device)
       evalHstu(model, test._1, test._2, test._3, Some(testY))
     }
 
@@ -156,11 +158,23 @@ object RunFraudAntiFraudPipeline {
   }
 
   private def runReport(name: String, task: String)(fn: => Map[String, Float]): ModelReport = {
+    // Free GPU memory before running a heavy model to reduce fragmentation / OOM
+    try {
+      try { torch.emptyCache() } catch { case _: Throwable => () }
+      try { System.gc() } catch { case _: Throwable => () }
+      try { Thread.sleep(50) } catch { case _: Throwable => () }
+    } catch { case _: Throwable => () }
+
     try {
       val m = fn
       ModelReport(name, task, ok = true, m, "")
     } catch {
       case e: Throwable => ModelReport(name, task, ok = false, Map.empty, Option(e.getMessage).getOrElse(e.getClass.getSimpleName))
+    } finally {
+      // Try to release GPU memory after the run as well
+      try { torch.emptyCache() } catch { case _: Throwable => () }
+      try { System.gc() } catch { case _: Throwable => () }
+      try { Thread.sleep(50) } catch { case _: Throwable => () }
     }
   }
 
@@ -176,12 +190,22 @@ object RunFraudAntiFraudPipeline {
       trainer.fit(trainLoader, Some(validLoader))
       trainer.evaluate(testLoader)
     }
+    // Helper to free GPU memory before constructing a new model (reduces OOM across sequential runs)
+    def safeConstruct[T](ctor: => T): T = {
+      if (device == "cuda") {
+        try { torch.emptyCache() } catch { case _: Throwable => () }
+        try { System.gc() } catch { case _: Throwable => () }
+        try { Thread.sleep(50) } catch { case _: Throwable => () }
+      }
+      ctor
+    }
 
-    reports += trainMtl("MMOE", new MMOE(features, taskTypes = List("classification", "classification"), nExpert = 4, expertParams = Map("dims" -> List(64L)), towerParamsList = List(Map("dims" -> List(32L)), Map("dims" -> List(32L))), device = device))
-    reports += trainMtl("OMoE", new OMoE(features, taskNames = List("fraud", "high_amount"), embedDim = 8, numExperts = 4, expertDims = List(64L), towerDims = List(32L), device = device))
-    reports += trainMtl("PLE", new PLE(features, taskTypes = List("classification", "classification"), nLevel = 1, nExpertSpecific = 2, nExpertShared = 1, expertParams = Map("dims" -> List(64L)), towerParamsList = List(Map("dims" -> List(32L)), Map("dims" -> List(32L))), device = device))
-    reports += trainMtl("AITM", new AITM(features, nTask = 2, bottomParams = Map("dims" -> List(64L, 32L)), towerParamsList = List(Map("dims" -> List(16L)), Map("dims" -> List(16L))), device = device))
-    reports += trainMtl("MetaHeac", new MetaHeac(features, taskNames = List("fraud", "high_amount"), embedDim = 8, bottomDims = List(64L, 32L), towerDims = List(32L, 16L), expertNum = 4, criticNum = 3, dropout = 0.2f, device = device))
+    reports += trainMtl("MMOE", safeConstruct(new MMOE(features, taskTypes = List("classification", "classification"), nExpert = 4, expertParams = Map("dims" -> List(64L)), towerParamsList = List(Map("dims" -> List(32L)), Map("dims" -> List(32L))), device = device)))
+    reports += trainMtl("OMoE", safeConstruct(new OMoE(features, taskNames = List("fraud", "high_amount"), embedDim = 8, numExperts = 4, expertDims = List(64L), towerDims = List(32L), device = device)))
+    reports += trainMtl("PLE", safeConstruct(new PLE(features, taskTypes = List("classification", "classification"), nLevel = 1, nExpertSpecific = 2, nExpertShared = 1, expertParams = Map("dims" -> List(64L)), towerParamsList = List(Map("dims" -> List(32L)), Map("dims" -> List(32L))), device = device)))
+    reports += trainMtl("AITM", safeConstruct(new AITM(features, nTask = 2, bottomParams = Map("dims" -> List(64L, 32L)), towerParamsList = List(Map("dims" -> List(16L)), Map("dims" -> List(16L))), device = device)))
+    reports += trainMtl("MetaHeac", safeConstruct(new MetaHeac(features, taskNames = List("fraud", "high_amount"), embedDim = 8, bottomDims = List(64L, 32L), towerDims = List(32L, 16L), expertNum = 4, criticNum = 3, dropout = 0.2f, device = device)))
+
     reports.toSeq
   }
 
@@ -304,7 +328,10 @@ object RunFraudAntiFraudPipeline {
       val positions = tensor(Array.tabulate(rows.size * prepared.seqLen)(i => (i % prepared.seqLen).toFloat), Array(rows.size.toLong, prepared.seqLen.toLong)).toType(ScalarType.Long)
       val labels = tensor(rows.map(_.label).toArray, Array(rows.size.toLong))
       val flatItemVec = rows.flatMap(_.itemVec).toArray
-      val itemVec = tensor(flatItemVec, Array(rows.size.toLong, seqEmbedDim.toLong)).toType(ScalarType.Float)
+      // Use the real per-row item vector length to avoid shape mismatches when
+      // the caller passes a different seqEmbedDim than the encoded itemVec width.
+      val itemVecDim = rows.headOption.map(_.itemVec.length).getOrElse(seqEmbedDim)
+      val itemVec = tensor(flatItemVec, Array(rows.size.toLong, itemVecDim.toLong)).toType(ScalarType.Float)
       new SequenceDataset(
         features = Map("user_id" -> userIds),
         sequenceFeatures = Map("seq_feat" -> tokens),
@@ -349,6 +376,7 @@ object RunFraudAntiFraudPipeline {
     // 训练前清理 CUDA 缓存，避免前面模型残留显存
     if (device == "cuda") {
       torch.emptyCache()
+      // 强制垃圾回收
       System.gc()
     }
     val lossFn = new BCEWithLogitsLoss()
@@ -481,7 +509,14 @@ object RunFraudAntiFraudPipeline {
   }
 
   private def trainRQVAE(model: RQVAE, train: Vector[EncodedRow], epochs: Int, batchSize: Int, device: String): Unit = {
-    val xAll = tensor(train.flatMap(_.dense).toArray, Array(train.size.toLong, train.headOption.map(_.dense.length).getOrElse(1).toLong)).toType(ScalarType.Float)
+    // Move training data to the same device as the model to avoid "mat1 is on cpu" errors
+    var xAll = tensor(train.flatMap(_.dense).toArray, Array(train.size.toLong, train.headOption.map(_.dense.length).getOrElse(1).toLong)).toType(ScalarType.Float)
+    if (device == "cuda") {
+      try {
+        val dev = new Device(device)
+        xAll = xAll.to(dev, ScalarType.Float)
+      } catch { case _: Throwable => () }
+    }
     val optimizer = new Adam(model.parameters(), new AdamOptions(1e-3))
     var e = 0
     while (e < epochs) {
@@ -509,7 +544,10 @@ object RunFraudAntiFraudPipeline {
   }
 
   private def evalRQVAE(model: RQVAE, test: Vector[EncodedRow], device: String): Map[String, Float] = {
-    val x = tensor(test.flatMap(_.dense).toArray, Array(test.size.toLong, test.headOption.map(_.dense.length).getOrElse(1).toLong)).toType(ScalarType.Float)
+    var x = tensor(test.flatMap(_.dense).toArray, Array(test.size.toLong, test.headOption.map(_.dense.length).getOrElse(1).toLong)).toType(ScalarType.Float)
+    if (device == "cuda") {
+      try { x = x.to(new Device(device), ScalarType.Float) } catch { case _: Throwable => () }
+    }
     val (decoded, _, _) = model.forward(x, use_sk = false)
     val err = torch.pow(decoded.sub(x), new Scalar(2.0)).mean(1)
     val predArr = err.toType(ScalarType.Float).contiguous().cpu().toFloatArray

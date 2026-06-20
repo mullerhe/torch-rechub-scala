@@ -70,6 +70,7 @@ object BenchmarkRunner {
 
     // Run all benchmarks
     val results = mutable.ListBuffer[BenchmarkResult]()
+    results += runXDeepFMBenchmark()
     results += runMAMBABenchmark()
     results += runESMMBenchmark()
     System.gc()
@@ -144,7 +145,7 @@ object BenchmarkRunner {
     System.gc()
 
     results += runWideDeepBenchmark()
-    results += runXDeepFMBenchmark()
+
     results += runXGBoostBenchmark()
     System.gc()
 
@@ -1772,7 +1773,8 @@ object BenchmarkRunner {
         )
       case "SASRec" =>
         new SASRec(
-          features = features,
+          sequenceFeatures = sequenceFeatures,
+//          features = features,
           embedDim = config.embedDim,
           numHeads = 2,
           numLayers = 2,

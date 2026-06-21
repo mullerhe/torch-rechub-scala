@@ -65,7 +65,7 @@ class SAINTPlusPlus(
   register_module("question_emb", questionEmb)
 
   // Positional embedding (learnable)
-  private val posEmb = new LearnablePositionalEmbedding(200, embedDim, dropout, device)
+  private val posEmb = new LearnablePositionalEmbedding(512, embedDim, dropout, device)
   register_module("pos_emb", posEmb)
 
   // Encoder blocks (enhanced with self-attention on exercise+category)
@@ -130,8 +130,14 @@ class SAINTPlusPlus(
     )
 
     // Encoder: exercise + category + position
-    val exEmbOut = exEmb.forward(exIds)
-    val catEmbOut = catEmb.forward(catIds)
+    // Defensive: ensure Long dtype and contiguous before embedding lookup
+    val devObj = new org.bytedeco.pytorch.Device(device)
+    var exIdsDev = exIds.to(devObj, ScalarType.Long)
+    var catIdsDev = catIds.to(devObj, ScalarType.Long)
+    val exIdsForEmb = exIdsDev.toType(ScalarType.Long).contiguous()
+    val catIdsForEmb = catIdsDev.toType(ScalarType.Long).contiguous()
+    val exEmbOut = exEmb.forward(exIdsForEmb)
+    val catEmbOut = catEmb.forward(catIdsForEmb)
     val posEnc = posEmb.forward(seqLen.toLong)
     val posEx = posEnc.expand(batchSize.toLong, seqLen.toLong, embedDim.toLong)
 
@@ -141,32 +147,57 @@ class SAINTPlusPlus(
     }
 
     // Decoder: prepend start token to responses
+//    val devObj = new org.bytedeco.pytorch.Device(device)
     val startTokens = torch.full(Array(batchSize.toLong, 1L), new Scalar(startTokenId.toDouble),
       new TensorOptions().dtype(new ScalarTypeOptional(ScalarType.Long)))
-    if (device != "cpu") {
-      startTokens.to(new org.bytedeco.pytorch.Device(device), ScalarType.Long)
-    }
-    val paddedResponses = torch.cat(new TensorVector(startTokens, resIds), 1)
+    val startTokensDev = if (device != "cpu") startTokens.to(devObj, ScalarType.Long) else startTokens
+    var resIdsDev = resIds.to(devObj, ScalarType.Long)
+    // Clamp against resEmb table size
+    try { val resNum = resEmb.weight().size(0); resIdsDev = resIdsDev.clamp(new org.bytedeco.pytorch.ScalarOptional(new org.bytedeco.pytorch.Scalar(0)), new org.bytedeco.pytorch.ScalarOptional(new org.bytedeco.pytorch.Scalar((resNum - 1).toDouble))) } catch { case _: Throwable => () }
+    val paddedResponses = torch.cat(new TensorVector(startTokensDev, resIdsDev), 1)
+    // Ensure indices are Long dtype on correct device before embedding lookup
+    val paddedResponsesLong = paddedResponses.toType(ScalarType.Long).to(devObj, ScalarType.Long).contiguous()
 
-    val resEmbOut = resEmb.forward(paddedResponses)
+    val resEmbOut = resEmb.forward(paddedResponsesLong)
     val posDec = posEmb.forward((seqLen + 1).toLong)
     val posDecEx = posDec.expand(batchSize.toLong, (seqLen + 1).toLong, embedDim.toLong)
 
     // Question embedding for decoder input
-    val questionIds = exIds.mul(new Scalar(numExercises.toDouble * 2)).add(resIds.mul(new Scalar(2)))
-    val questionEmbOut = questionEmb.forward(questionIds)
+    // Map (exercise, response) -> combined id in range [0, 2*numExercises-1]
+    // Build question ids from Long index tensors to avoid float arithmetic and rounding issues
+    val exIdsLongForQuestion = exIds.toType(ScalarType.Long)
+    val resIdsLongForQuestion = resIds.toType(ScalarType.Long)
+    // For mapping, treat padding exercise id (which equals numExercises) specially.
+    // Real exercises are in [0, numExercises-1]. We'll map pad -> last index in questionEmb (2*numExercises).
+    val exIdsClampedForQuestion = try {
+      // clamp to [0, numExercises-1] for real mapping
+      exIdsLongForQuestion.clamp(new org.bytedeco.pytorch.ScalarOptional(new org.bytedeco.pytorch.Scalar(0)), new org.bytedeco.pytorch.ScalarOptional(new org.bytedeco.pytorch.Scalar((numExercises - 1).toDouble)))
+    } catch { case _: Throwable => exIdsLongForQuestion }
+
+    // Build the combined id for real exercises
+    val questionRawForReal = exIdsClampedForQuestion.mul(new Scalar(2)).add(resIdsLongForQuestion)
+
+    // Now set pad positions (where original exIds == numExercises) to the reserved pad index (2 * numExercises)
+    val padIndexForQuestion = (2 * numExercises).toLong
+    val isPad = exIdsLongForQuestion.eq(new Scalar(numExercises.toDouble))
+    // Create a tensor filled with padIndex
+    val padIndexTensor = torch.full(questionRawForReal.shape(), new Scalar(padIndexForQuestion.toDouble), new TensorOptions().dtype(new ScalarTypeOptional(ScalarType.Long))).to(isPad.device(), ScalarType.Long)
+    // Use torch.where to choose pad index for pad positions, else questionRawForReal
+    val questionIdsLongUnclamped = torch.where(isPad, padIndexTensor, questionRawForReal)
+
+    // Finally clamp against the actual questionEmb table size as an extra safety and cast to Long
+    var questionIdsLong = try {
+      val qNum = questionEmb.weight().size(0)
+      questionIdsLongUnclamped.clamp(new org.bytedeco.pytorch.ScalarOptional(new org.bytedeco.pytorch.Scalar(0)), new org.bytedeco.pytorch.ScalarOptional(new org.bytedeco.pytorch.Scalar((qNum - 1).toDouble))).toType(ScalarType.Long)
+    } catch { case _: Throwable => questionIdsLongUnclamped.toType(ScalarType.Long) }
+    val questionEmbOut = questionEmb.forward(questionIdsLong.contiguous())
     val posQ = posEmb.forward(seqLen.toLong)
     val questionEnc = questionEmbOut.add(posQ.expand(batchSize.toLong, seqLen.toLong, embedDim.toLong))
 
     // Prepend question embedding for decoder
-    val paddedQuestions = torch.cat(new TensorVector(
-      torch.zeros(Array(batchSize.toLong, 1L, embedDim.toLong),
-        new TensorOptions().dtype(new ScalarTypeOptional(ScalarType.Float))),
-      questionEnc
-    ), 1)
-    if (device != "cpu") {
-      paddedQuestions.to(new org.bytedeco.pytorch.Device(device), ScalarType.Float)
-    }
+    var zerosPad = torch.zeros(Array(batchSize.toLong, 1L, embedDim.toLong), new TensorOptions().dtype(new ScalarTypeOptional(ScalarType.Float)))
+    if (device != "cpu") zerosPad = zerosPad.to(devObj, ScalarType.Float)
+    val paddedQuestions = torch.cat(new TensorVector(zerosPad, questionEnc), 1)
 
     var decOut = resEmbOut.add(posDecEx)
     decoderBlocks.foreach { block =>

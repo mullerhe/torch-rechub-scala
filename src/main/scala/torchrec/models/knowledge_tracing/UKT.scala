@@ -130,15 +130,21 @@ class UKT(
     )
 
     // Get mean embeddings
-    val qMeanEmb = meanQEmbed.forward(cIdsLong)  // (batch, seq, embedDim)
-    val qaMeanEmb = meanQAEmbed.forward(cIdsLong.add(rLong.mul(new Scalar(numConcepts.toDouble))))
+    // Ensure indices are on the model device and Long dtype
+    val cIdsLongDev = cIdsLong.to(new org.bytedeco.pytorch.Device(device), ScalarType.Long)
+    val rLongDev = rLong.to(new org.bytedeco.pytorch.Device(device), ScalarType.Long)
+
+    val qMeanEmb = meanQEmbed.forward(cIdsLongDev)  // (batch, seq, embedDim)
+    val qaIndex = cIdsLongDev.add(rLongDev.mul(new Scalar(numConcepts.toDouble))).toType(ScalarType.Long).to(new org.bytedeco.pytorch.Device(device), ScalarType.Long)
+    val qaMeanEmb = meanQAEmbed.forward(qaIndex)
 
     // Get covariance embeddings
-    val qCovEmb = covQEmbed.index_select(0, cIdsLong.view(-1L)).view(batchSize, seqLen, embedDim)
-    val qaCovEmb = covQAEmbed.index_select(0, cIdsLong.add(rLong.mul(new Scalar(numConcepts.toDouble))).view(-1L)).view(batchSize, seqLen, embedDim)
+    val qCovEmb = covQEmbed.index_select(0, cIdsLongDev.view(-1L)).view(batchSize, seqLen, embedDim)
+    val qaIndexFlat = qaIndex.view(-1L)
+    val qaCovEmb = covQAEmbed.index_select(0, qaIndexFlat).view(batchSize, seqLen, embedDim)
 
     // Get question difficulty
-    val qDiffEmb = qDiff.index_select(0, cIdsLong.view(-1L)).view(batchSize, seqLen, embedDim)
+    val qDiffEmb = qDiff.index_select(0, cIdsLongDev.view(-1L)).view(batchSize, seqLen, embedDim)
 
     // Add positional encoding
     val qMeanPos = posMeanEmbed.forward(qMeanEmb)

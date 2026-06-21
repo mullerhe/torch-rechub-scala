@@ -49,16 +49,19 @@ class AKT(
 
   // Question difficulty parameter (Rasch model)
   private val qDiff = {
-    val t = torch.randn(Array((numConcepts + 1).toLong, embedDim.toLong),
+    var t = torch.randn(Array((numConcepts + 1).toLong, embedDim.toLong),
       new TensorOptions().dtype(new ScalarTypeOptional(ScalarType.Float)))
       .mul(new Scalar(0.1f))
+    // If running on GPU, move parameter to device so subsequent ops are on same device
+    if (device != "cpu") t = t.to(new org.bytedeco.pytorch.Device(device), ScalarType.Float)
     register_parameter("q_diff", t)
     t
   }
   private val qaDiff = {
-    val t = torch.randn(Array((numConcepts + 1).toLong, embedDim.toLong),
+    var t = torch.randn(Array((numConcepts * 2).toLong, embedDim.toLong),
       new TensorOptions().dtype(new ScalarTypeOptional(ScalarType.Float)))
       .mul(new Scalar(0.1f))
+    if (device != "cpu") t = t.to(new org.bytedeco.pytorch.Device(device), ScalarType.Float)
     register_parameter("qa_diff", t)
     t
   }
@@ -104,8 +107,27 @@ class AKT(
     val batchSize = conceptIds.size(0).toInt
     val seqLen = conceptIds.size(1).toInt
 
-    // QA interaction embedding
-    val interactionIds = conceptIds.add(responses.mul(new Scalar(numConcepts.toDouble))).toType(ScalarType.Long)
+    // Ensure IDs are Long and within valid ranges before embedding/index_select
+    val minScalar = new org.bytedeco.pytorch.Scalar(0L)
+    val maxConceptScalar = new org.bytedeco.pytorch.Scalar(numConcepts)
+    val maxResponseScalar = new org.bytedeco.pytorch.Scalar(1L)
+
+    val conceptIdsLong = conceptIds.toType(ScalarType.Long).clamp(
+      new org.bytedeco.pytorch.ScalarOptional(minScalar),
+      new org.bytedeco.pytorch.ScalarOptional(maxConceptScalar)
+    ).toType(ScalarType.Long)
+    val responsesLong = responses.toType(ScalarType.Long).clamp(
+      new org.bytedeco.pytorch.ScalarOptional(minScalar),
+      new org.bytedeco.pytorch.ScalarOptional(maxResponseScalar)
+    ).toType(ScalarType.Long)
+
+    // Build interaction ids safely and clamp to embedding table range
+    val interactionRaw = conceptIdsLong.add(responsesLong.mul(new Scalar(numConcepts)))
+    val maxInteraction = numConcepts * 2 - 1
+    val interactionIds = interactionRaw.clamp(
+      new org.bytedeco.pytorch.ScalarOptional(new org.bytedeco.pytorch.Scalar(0L)),
+      new org.bytedeco.pytorch.ScalarOptional(new org.bytedeco.pytorch.Scalar(maxInteraction))
+    ).toType(ScalarType.Long)
     var qaEmb = qaEmbed.forward(interactionIds)  // (batch, seqLen, embedDim)
 
     // Add positional encoding
@@ -118,14 +140,16 @@ class AKT(
       y = block.forward(y, mask = 1)
     }
 
-    // Question embedding with difficulty adjustment
-    val qEmb = qEmbed.forward(conceptIds)  // (batch, seqLen, embedDim)
+    // Question embedding with difficulty adjustment (use long/clamped IDs)
+    val qEmb = qEmbed.forward(conceptIdsLong)
 
     // Apply Rasch difficulty model
-    val qDiffEmb = qDiff.index_select(0, conceptIds.view(-1L).toType(ScalarType.Long))
-      .view(batchSize, seqLen, embedDim)
-    val qaDiffEmb = qaDiff.index_select(0, interactionIds.view(-1L).toType(ScalarType.Long))
-      .view(batchSize, seqLen, embedDim)
+    try {
+      println(s"[DEBUG AKT] conceptIdsLong dtype=${conceptIdsLong.dtype()} shape=${conceptIdsLong.shape().mkString(",")} min=${conceptIdsLong.toType(ScalarType.Long).view(-1L).min().itemSafe()} max=${conceptIdsLong.toType(ScalarType.Long).view(-1L).max().itemSafe()}")
+      println(s"[DEBUG AKT] interactionIds dtype=${interactionIds.dtype()} shape=${interactionIds.shape().mkString(",")} min=${interactionIds.toType(ScalarType.Long).view(-1L).min().itemSafe()} max=${interactionIds.toType(ScalarType.Long).view(-1L).max().itemSafe()}")
+    } catch { case _: Throwable => () }
+    val qDiffEmb = qDiff.index_select(0, conceptIdsLong.toType(ScalarType.Long).view(-1L)).view(batchSize, seqLen, embedDim)
+    val qaDiffEmb = qaDiff.index_select(0, interactionIds.toType(ScalarType.Long).view(-1L)).view(batchSize, seqLen, embedDim)
 
     val adjQEmb = qEmb.add(qDiffEmb)
     val adjQaEmb = qaEmb.add(qaDiffEmb)

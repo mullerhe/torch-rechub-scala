@@ -118,13 +118,13 @@ class MTKT(
       new org.bytedeco.pytorch.ScalarOptional(maxResponseScalar)
     )
 
-    // Get embeddings
-    val qEmb = qEmbed.forward(cIdsLong)  // (batch, seq, embedDim)
-    val rEmb = rEmbed.forward(rLong)  // (batch, seq, embedDim)
+    // Get embeddings (defensive: ensure Long dtype before embedding)
+    val qEmb = qEmbed.forward(cIdsLong.toType(ScalarType.Long))  // (batch, seq, embedDim)
+    val rEmb = rEmbed.forward(rLong.toType(ScalarType.Long))  // (batch, seq, embedDim)
 
     // QA interaction embedding
     val qaIds = cIdsLong.add(rLong.mul(new Scalar(numConcepts.toDouble)))
-    val qaEmb = qaEmbed.forward(qaIds)  // (batch, seq, embedDim)
+    val qaEmb = qaEmbed.forward(qaIds.toType(ScalarType.Long))  // (batch, seq, embedDim)
 
     // Add positional encoding
     val posEnc = posEmbed.forward(qEmb)

@@ -121,11 +121,11 @@ class PromptKT(
       new org.bytedeco.pytorch.ScalarOptional(maxResponseScalar)
     )
 
-    // Get question embeddings
-    val qEmb = qEmbed.forward(cIdsLong)  // (batch, seq, embedDim)
+    // Get question embeddings (defensive: ensure Long dtype)
+    val qEmb = qEmbed.forward(cIdsLong.toType(ScalarType.Long))  // (batch, seq, embedDim)
 
     // Get concept embeddings
-    val cEmb = cEmbed.index_select(0, cIdsLong.view(-1L)).view(batchSize, seqLen, embedDim)
+    val cEmb = cEmbed.index_select(0, cIdsLong.toType(ScalarType.Long).view(-1L)).view(batchSize, seqLen, embedDim)
 
     // Average concept embeddings for prompt generation
     val cMask = cIdsLong.ne(new Scalar(0)).unsqueeze(2).toType(ScalarType.Float)
@@ -136,8 +136,8 @@ class PromptKT(
     // Generate prompts using MLP
     val prompts = promptMLP.forward(cAvg)  // (batch, embedDim)
 
-    // Get QA embeddings (response modulation)
-    val qaEmb = qaEmbed.forward(rLong)  // (batch, seq, embedDim)
+    // Get QA embeddings (defensive: ensure Long dtype for indices)
+    val qaEmb = qaEmbed.forward(rLong.toType(ScalarType.Long))  // (batch, seq, embedDim)
 
     // Combine question, concept, and prompt embeddings
     val combinedEmb = qEmb.add(cEmb).add(prompts.unsqueeze(1))  // (batch, seq, embedDim)

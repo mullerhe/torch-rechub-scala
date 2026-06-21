@@ -170,8 +170,8 @@ class DIMKT(
     val resEmb = responseEmb.forward(rClamped)  // (batch, seqLen, embedDim)
 
     // Data-aware fusion: Add learned concept priors
-    val prior1 = conceptPrior1.index_select(0, c1Clamped.view(-1L)).view(batchSize, seqLen, embedDim)
-    val prior2 = conceptPrior2.index_select(0, c2Clamped.view(-1L)).view(batchSize, seqLen, embedDim)
+    val prior1 = conceptPrior1.index_select(0, c1Clamped.toType(ScalarType.Long).view(-1L)).view(batchSize, seqLen, embedDim)
+    val prior2 = conceptPrior2.index_select(0, c2Clamped.toType(ScalarType.Long).view(-1L)).view(batchSize, seqLen, embedDim)
 
     val fused1 = emb1.add(prior1).add(resEmb)
     val fused2 = emb2.add(prior1).add(resEmb)

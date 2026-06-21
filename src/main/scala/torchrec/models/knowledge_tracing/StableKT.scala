@@ -224,20 +224,22 @@ class StableTransformerBlock(
   }
 
   private def computeAliBi(seqLen: Int, numHeads: Int): Tensor = {
-    val alibi = torch.zeros(Array(1L, numHeads, seqLen, seqLen),
-      new TensorOptions().dtype(new ScalarTypeOptional(ScalarType.Float)))
-
+    // Build ALiBi bias tensor by constructing a float array and reshaping.
+    val total = 1 * numHeads * seqLen * seqLen
+    val flat = new Array[Float](total)
     for (h <- 0 until numHeads) {
       val slope = slopes.select(0, h).item().toFloat
       for (i <- 0 until seqLen) {
         for (j <- 0 until seqLen) {
           val distance = j - i
           val bias = slope * distance
-          alibi.select(0, 0).select(1, h).select(2, i).select(3, j).fill_(new Scalar(bias.toDouble))
+          val idx = ((0 * numHeads + h) * seqLen + i) * seqLen + j
+          flat(idx) = bias.toFloat
         }
       }
     }
-    alibi
+    val t = torch.tensor(flat, new TensorOptions().dtype(new ScalarTypeOptional(ScalarType.Float)))
+    t.reshape(1L, numHeads.toLong, seqLen.toLong, seqLen.toLong)
   }
 
   private def penumbralAttention(

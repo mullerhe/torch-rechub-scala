@@ -138,7 +138,9 @@ class SKVMN(
 
     val lstmOut = lstm.forward(ft).get0()
 
-    val lastHidden = lstmOut.select(1, seqLen - 1)
+    // lstmOut shape: (seqLen, batchSize, embedDim) because LSTM was created
+    // with batch_first = false. The final time-step is at dim 0, index seqLen-1.
+    val lastHidden = lstmOut.select(0, seqLen - 1)
 
     val pred = pLayer.forward(dropoutLayer.forward(lastHidden))
     pred.sigmoid()

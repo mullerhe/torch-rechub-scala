@@ -68,10 +68,8 @@ class LearnablePositionalEmbedding(
   private val dropoutLayer = new DropoutImpl(dropout)
 
   def forward(seqLen: Long): Tensor = {
-    val positions = torch.arange(new Scalar(0), new Scalar(seqLen), new TensorOptions().dtype(new ScalarTypeOptional(ScalarType.Long)))
-    if (device != "cpu") {
-      positions.to(new org.bytedeco.pytorch.Device(device), ScalarType.Long)
-    }
+    val dev = new org.bytedeco.pytorch.Device(device)
+    val positions = torch.arange(new Scalar(0), new Scalar(seqLen), new TensorOptions().device(new DeviceOptional(dev)).dtype(new ScalarTypeOptional(ScalarType.Long)))
     dropoutLayer.forward(embedding.forward(positions))
   }
 }

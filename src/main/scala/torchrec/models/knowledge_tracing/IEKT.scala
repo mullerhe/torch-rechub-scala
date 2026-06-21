@@ -44,9 +44,10 @@ class IEKT(
 
   // Concept embedding
   private val conceptEmb = {
-    val p = torch.randn(Array(numConcepts + 1, embedDim),
+    var p = torch.randn(Array(numConcepts + 1, embedDim),
       new TensorOptions().dtype(new ScalarTypeOptional(ScalarType.Float)))
       .mul(new Scalar(0.01f))
+    if (device != "cpu") p = p.to(new org.bytedeco.pytorch.Device(device), ScalarType.Float)
     register_parameter("concept_emb", p)
     p
   }
@@ -57,22 +58,24 @@ class IEKT(
 
   // Cognitive matrix (skill levels)
   private val cogMatrix = {
-    val p = torch.randn(Array(numCogLevels.toLong, embedDim * 2),
+    var p = torch.randn(Array(numCogLevels.toLong, embedDim * 2),
       new TensorOptions().dtype(new ScalarTypeOptional(ScalarType.Float)))
-      register_parameter("cog_matrix", p)
+    if (device != "cpu") p = p.to(new org.bytedeco.pytorch.Device(device), ScalarType.Float)
+    register_parameter("cog_matrix", p)
     p
   }
 
   // Acquisition sensitivity matrix
   private val acqMatrix = {
-    val p = torch.randn(Array(numAcqLevels.toLong, embedDim * 2),
+    var p = torch.randn(Array(numAcqLevels.toLong, embedDim * 2),
       new TensorOptions().dtype(new ScalarTypeOptional(ScalarType.Float)))
-      register_parameter("acq_matrix", p)
+    if (device != "cpu") p = p.to(new org.bytedeco.pytorch.Device(device), ScalarType.Float)
+    register_parameter("acq_matrix", p)
     p
   }
 
-  // Predictor MLP
-  private val predictor = new MLP(embedDim * 5, List(embedDim.toLong), 1, "relu", dropout, device = device)
+  // Predictor MLP (input is hQConcat (2*embed) concatenated with rt.narrow(.,0,embed) => 3*embed)
+  private val predictor = new MLP(embedDim * 3, List(embedDim.toLong), 1, "relu", dropout, device = device)
   register_module("predictor", predictor)
 
   // Cognitive selector MLP
@@ -83,8 +86,8 @@ class IEKT(
   private val acqSelector = new MLP(embedDim * 4, List(embedDim.toLong), numAcqLevels, "relu", dropout, device = device)
   register_module("acq_selector", acqSelector)
 
-  // GRU cell for state update
-  private val gruCell = new GRUCellImpl(embedDim * 4, embedDim)
+  // GRU cell for state update (input: q + cogEmb + acqEmb => 5*embedDim)
+  private val gruCell = new GRUCellImpl(embedDim * 5, embedDim)
   register_module("gru_cell", gruCell)
 
   // Dropout
@@ -133,8 +136,14 @@ class IEKT(
     )
 
     // Get concept embeddings
-    val cEmb = conceptEmb.index_select(0, cIdsLong.view(-1L)).view(batchSize, seqLen, embedDim)
-    val qEmb = qEmbed.forward(cIdsLong)
+    // Debug: ensure index tensor is Long and within expected range
+    try {
+      println(s"[DEBUG IEKT] cIdsLong dtype=${cIdsLong.dtype()} shape=${cIdsLong.shape().mkString(",")} min=${cIdsLong.toType(ScalarType.Long).view(-1L).min().itemSafe()} max=${cIdsLong.toType(ScalarType.Long).view(-1L).max().itemSafe()}")
+    } catch { case _: Throwable => () }
+    // Ensure indices are on the same device and have Long dtype before embedding/index_select
+    val cIdsLongDev = cIdsLong.to(new org.bytedeco.pytorch.Device(device), ScalarType.Long)
+    val cEmb = conceptEmb.index_select(0, cIdsLongDev.view(-1L)).view(batchSize, seqLen, embedDim)
+    val qEmb = qEmbed.forward(cIdsLongDev)
 
     // Initialize hidden state
     var h = torch.zeros(Array(batchSize.toLong, embedDim),
@@ -172,8 +181,10 @@ class IEKT(
       val acqAction = acqLogits.argmax(new LongOptional(1), true)  // (batch, 1)
 
       // Look up cognitive and acquisition embeddings
-      val cogEmb = cogMatrix.index_select(0, cogAction.view(-1L)).view(batchSize, embedDim * 2)
-      val acqEmb = acqMatrix.index_select(0, acqAction.view(-1L)).view(batchSize, embedDim * 2)
+       val cogActionDev = cogAction.to(new org.bytedeco.pytorch.Device(device), ScalarType.Long)
+       val acqActionDev = acqAction.to(new org.bytedeco.pytorch.Device(device), ScalarType.Long)
+       val cogEmb = cogMatrix.index_select(0, cogActionDev.view(-1L)).view(batchSize, embedDim * 2)
+       val acqEmb = acqMatrix.index_select(0, acqActionDev.view(-1L)).view(batchSize, embedDim * 2)
 
       // Predict response probability
       val predInput = torch.cat(new TensorVector(hQConcat, rt.narrow(1, 0, embedDim)), 1)  // (batch, 3*embedDim)
@@ -182,17 +193,18 @@ class IEKT(
       predictions.append(prob.squeeze(1))
 
       // Get response at position i for state update
-      val r = rLong.select(1, i).toType(ScalarType.Float).unsqueeze(1)  // (batch, 1)
+       val r = rLong.select(1, i).toType(ScalarType.Float).unsqueeze(1)  // (batch, 1)
 
-      // Update RT based on response
-      val correctMask = r  // 1 if correct, 0 if incorrect
-      val incorrectMask = new Scalar((1.0 - r.item().toFloat()) )//.sub(r)
+       // Update RT based on response
+       val correctMask = r  // (batch,1)
+       val incorrectMask = torch.ones_like(r).sub(r) // (batch,1) = 1 - r
 
-      // RT update: combine concept based on correctness
-      val qExpanded = q.unsqueeze(1).expand(batchSize, embedDim * 2)  // (batch, 2*embedDim) - simplified
-      val rtCorrect = qExpanded.mul(correctMask)  // Keep concept if correct
-      val rtIncorrect = rt.narrow(1, 0, embedDim * 2).mul(incorrectMask)  // Keep old RT if incorrect
-      rt = rtCorrect.add(rtIncorrect)
+       // RT update: combine concept based on correctness
+       // Expand question embedding to match RT half-size (2*embedDim)
+       val qExpanded = torch.cat(new TensorVector(q, q), 1)  // (batch, 2*embedDim)
+       val rtCorrect = qExpanded.mul(correctMask)  // Keep concept if correct
+       val rtIncorrect = rt.narrow(1, 0, embedDim * 2).mul(incorrectMask)  // Keep old RT if incorrect
+       rt = rtCorrect.add(rtIncorrect)
 
       // GRUCell input: combine question, cognitive, acquisition embeddings
       val gruInput = torch.cat(new TensorVector(q, cogEmb, acqEmb), 1)  // (batch, 4*embedDim)

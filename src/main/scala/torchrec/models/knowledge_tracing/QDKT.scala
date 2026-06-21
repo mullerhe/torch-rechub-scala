@@ -97,8 +97,8 @@ class QDKT(
     // Create interaction IDs: question * 2 + response
     val interactionIds = qIdsLong.mul(new Scalar(2)).add(rLong)
 
-    // Get interaction embeddings
-    val emb = interactionEmb.forward(interactionIds)  // (batch, seq, embedDim)
+    // Get interaction embeddings (defensive: ensure Long dtype)
+    val emb = interactionEmb.forward(interactionIds.toType(ScalarType.Long))  // (batch, seq, embedDim)
 
     // LSTM forward
     val lstmOut = lstm.forward(emb).get0()  // (batch, seq, embedDim)

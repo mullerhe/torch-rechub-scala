@@ -136,9 +136,9 @@ class RKT(
       new org.bytedeco.pytorch.ScalarOptional(maxResponseScalar)
     )
 
-    // Get embeddings
-    val cEmb = conceptEmb.forward(cIdsLong)  // (batch, seq, embedDim)
-    val rEmb = responseEmb.forward(rLong)  // (batch, seq, embedDim)
+    // Get embeddings (defensive: ensure Long dtype)
+    val cEmb = conceptEmb.forward(cIdsLong.toType(ScalarType.Long))  // (batch, seq, embedDim)
+    val rEmb = responseEmb.forward(rLong.toType(ScalarType.Long))  // (batch, seq, embedDim)
 
     // Create input by multiplying concept embedding with response
     // response modulates the concept embedding (correct = enhance, incorrect = suppress)

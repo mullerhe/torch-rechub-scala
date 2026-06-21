@@ -3,7 +3,7 @@ package benchmarks.kt
 import org.bytedeco.pytorch.{Adam, AdamOptions, Device, Module, Scalar, Tensor, TensorOptions, TensorVector}
 import org.bytedeco.pytorch.global.torch
 import org.bytedeco.pytorch.global.torch.ScalarType
-import torchrec.Implicits.{RichTensor, tensor}
+import torchrec.Implicits.{RichTensor, tensor, longTensor}
 import torchrec.basic.losses.{BCELoss, BCEWithLogitsLoss}
 import torchrec.basic.metrics.{AUC, Accuracy, LogLoss}
 import torchrec.data.{DataLoader, Dataset, Batch}
@@ -85,20 +85,24 @@ object KnowledgeTracingHarness {
     override def get(index: Long): Batch = {
       val safe = math.max(0, math.min(index.toInt, windows.size - 1))
       val sample = windows(safe)
-      Batch(
-        sparseFeatures = Map(
-          "questions" -> tensor(sample.questionIds.map(_.toFloat), Array(sample.questionIds.length.toLong)).toType(ScalarType.Long),
-          "concepts" -> tensor(sample.conceptIds.map(_.toFloat), Array(sample.conceptIds.length.toLong)).toType(ScalarType.Long),
-          "responses" -> tensor(sample.responses.map(_.toFloat), Array(sample.responses.length.toLong)).toType(ScalarType.Long)
-        ),
-        denseFeatures = Map(
-          "mask" -> tensor(sample.mask, Array(sample.mask.length.toLong))
-        ),
-        sequenceFeatures = Map(
-          "target_concepts" -> tensor(sample.targetConcepts.map(_.toFloat), Array(sample.targetConcepts.length.toLong)).toType(ScalarType.Long)
-        ),
-        labels = Some(tensor(sample.labels, Array(sample.labels.length.toLong)).toType(ScalarType.Float))
-      )
+        // Ensure index tensors are created as explicit Long tensors to avoid
+        // accidental float dtypes being passed into embedding/index_select
+        // operations in models.
+        Batch(
+          sparseFeatures = Map(
+            "questions" -> longTensor(sample.questionIds.map(_.toLong).toArray),
+            "concepts" -> longTensor(sample.conceptIds.map(_.toLong).toArray),
+            "responses" -> longTensor(sample.responses.map(_.toLong).toArray)
+          ),
+          denseFeatures = Map(
+            // mask is a float tensor
+            "mask" -> tensor(sample.mask, Array(sample.mask.length.toLong))
+          ),
+          sequenceFeatures = Map(
+            "target_concepts" -> longTensor(sample.targetConcepts.map(_.toLong).toArray)
+          ),
+          labels = Some(tensor(sample.labels, Array(sample.labels.length.toLong)).toType(ScalarType.Float))
+        )
     }
   }
 

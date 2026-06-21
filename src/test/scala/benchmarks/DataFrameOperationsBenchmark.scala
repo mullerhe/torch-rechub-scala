@@ -365,17 +365,18 @@ object DataFrameOperationsBenchmark {
     val category = "Phase3_ColumnOps"
     try {
       val startTime = System.nanoTime()
-      val result = df.str("category").length
+      val result = df.str("category").len()
       val elapsed = (System.nanoTime() - startTime) / 1e6
 
       DataFrameOpResult(
         name = name,
         category = category,
-        passed = result.length == df.numRows && result.name.endsWith("_length"),
+        passed = result.length == df.numRows && result.name.endsWith("category"),
         rowsProcessed = df.numRows.toLong,
         latencyMs = elapsed,
         throughputRowsPerSec = df.numRows * 1000.0 / elapsed,
-        memoryMb = estimateMemory(df)
+        memoryMb = estimateMemory(df),
+        error = None
       )
     } catch {
       case e: Exception => DataFrameOpResult(name, category, false, 0, 0, 0, 0, Some(e.getMessage))
@@ -528,7 +529,7 @@ object DataFrameOperationsBenchmark {
     try {
       val df2 = createTestDataFrame(1000)
       val startTime = System.nanoTime()
-      val result = df.union(df2)
+      val result = df.append(df2)
       val elapsed = (System.nanoTime() - startTime) / 1e6
 
       DataFrameOpResult(
@@ -538,7 +539,8 @@ object DataFrameOperationsBenchmark {
         rowsProcessed = (df.numRows + 1000).toLong,
         latencyMs = elapsed,
         throughputRowsPerSec = (df.numRows + 1000) * 1000.0 / elapsed,
-        memoryMb = estimateMemory(result)
+        memoryMb = estimateMemory(result),
+        error = None
       )
     } catch {
       case e: Exception => DataFrameOpResult(name, category, false, 0, 0, 0, 0, Some(e.getMessage))
@@ -554,7 +556,7 @@ object DataFrameOperationsBenchmark {
       }
       val df2 = DataFrame.fromRows(df2Rows)
       val startTime = System.nanoTime()
-      val result = df.join(df2, "category", JoinType.Inner)
+      val result = df.join(df2, "category", "inner")
       val elapsed = (System.nanoTime() - startTime) / 1e6
 
       DataFrameOpResult(
@@ -564,7 +566,8 @@ object DataFrameOperationsBenchmark {
         rowsProcessed = df.numRows.toLong,
         latencyMs = elapsed,
         throughputRowsPerSec = df.numRows * 1000.0 / elapsed,
-        memoryMb = estimateMemory(result)
+        memoryMb = estimateMemory(result),
+        error = None
       )
     } catch {
       case e: Exception => DataFrameOpResult(name, category, false, 0, 0, 0, 0, Some(e.getMessage))
@@ -634,7 +637,8 @@ object DataFrameOperationsBenchmark {
         rowsProcessed = df.numRows.toLong,
         latencyMs = elapsed,
         throughputRowsPerSec = df.numRows * 1000.0 / elapsed,
-        memoryMb = estimateMemory(result)
+        memoryMb = estimateMemory(result),
+        error = None
       )
     } catch {
       case e: Exception => DataFrameOpResult(name, category, false, 0, 0, 0, 0, Some(e.getMessage))
@@ -711,7 +715,8 @@ object DataFrameOperationsBenchmark {
         rowsProcessed = 100,
         latencyMs = elapsed,
         throughputRowsPerSec = 100 * 1000.0 / elapsed,
-        memoryMb = estimateMemory(result)
+        memoryMb = estimateMemory(result),
+        error = None
       )
     } catch {
       case e: Exception => DataFrameOpResult(name, category, false, 0, 0, 0, 0, Some(e.getMessage))

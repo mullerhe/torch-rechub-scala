@@ -138,21 +138,41 @@ class Column(
         }
 
         val mean = if (count > 0) sum / count else Double.NaN
-        val variance = if (count > 1) {
+        var variance = 0.0
+        var skew = 0.0
+        var kurt = 0.0
+
+        if (count > 1) {
           var sqDiff = 0.0
+          var cubeDiff = 0.0
+          var fourthDiff = 0.0
           for (i <- 0 until length) {
             if (!isNullAt(i)) {
-              val v = data(i) match
+              val v = data(i) match {
                 case f: Float => f.toDouble
                 case d: Double => d
                 case l: Long => l.toDouble
                 case i: Int => i.toDouble
                 case _ => Double.NaN
-              if (!v.isNaN) sqDiff += (v - mean) * (v - mean)
+              }
+              if (!v.isNaN) {
+                val diff = v - mean
+                val d2 = diff * diff
+                sqDiff += d2
+                cubeDiff += d2 * diff
+                fourthDiff += d2 * d2
+              }
             }
           }
-          sqDiff / count
-        } else 0.0
+          variance = sqDiff / count
+          val std = math.sqrt(variance)
+          if (std > 0) {
+            val m3 = cubeDiff / count
+            val m4 = fourthDiff / count
+            skew = m3 / math.pow(std, 3)
+            kurt = m4 / math.pow(std, 4) - 3.0 // Excess kurtosis
+          }
+        }
 
         ColumnStats(
           count = count,
@@ -160,7 +180,10 @@ class Column(
           min = if (minVal == Double.MaxValue) Double.NaN else minVal,
           max = if (maxVal == Double.MinValue) Double.NaN else maxVal,
           mean = mean,
-          std = math.sqrt(variance)
+          std = math.sqrt(variance),
+          sum = sum,
+          skew = skew,
+          kurt = kurt
         )
 
       case _ =>
@@ -168,6 +191,117 @@ class Column(
   }
 
   override def toString: String = s"Column($name, $dtype, $length elements)"
+
+  /** Comparison operators returning a Boolean Column */
+  def eq(value: Any): Column = {
+    val res = data.map(v => (v == value).asInstanceOf[Any])
+    new Column(s"$name == $value", res, DataType.Boolean)
+  }
+
+  def ne(value: Any): Column = {
+    val res = data.map(v => (v != value).asInstanceOf[Any])
+    new Column(s"$name != $value", res, DataType.Boolean)
+  }
+
+  def gt(value: Double): Column = {
+    val res = data.map(v => (v.toString.toDouble > value).asInstanceOf[Any])
+    new Column(s"$name > $value", res, DataType.Boolean)
+  }
+
+  def lt(value: Double): Column = {
+    val res = data.map(v => (v.toString.toDouble < value).asInstanceOf[Any])
+    new Column(s"$name < $value", res, DataType.Boolean)
+  }
+
+  def ge(value: Double): Column = {
+    val res = data.map(v => (v.toString.toDouble >= value).asInstanceOf[Any])
+    new Column(s"$name >= $value", res, DataType.Boolean)
+  }
+
+  def le(value: Double): Column = {
+    val res = data.map(v => (v.toString.toDouble <= value).asInstanceOf[Any])
+    new Column(s"$name <= $value", res, DataType.Boolean)
+  }
+
+  /** Map over elements with a function */
+  def map(f: Any => Any): Column = {
+    val newData = data.map(f)
+    new Column(name, newData, DataType.fromClass(classOf[Any]))
+  }
+
+  /** Specialization for Float anonymous functions */
+  def mapFloat(f: Float => Float): Column = {
+    val newData = data.map {
+      case n: Number => f(n.floatValue())
+      case _ => Float.NaN
+    }.map(_.asInstanceOf[Any])
+    new Column(name, newData, DataType.Float32)
+  }
+
+  /** Specialization for Double anonymous functions */
+  def mapDouble(f: Double => Double): Column = {
+    val newData = data.map {
+      case n: Number => f(n.doubleValue())
+      case _ => Double.NaN
+    }.map(_.asInstanceOf[Any])
+    new Column(name, newData, DataType.Float64)
+  }
+
+  // --- Numeric Operations ---
+  def +(other: Column): Column = {
+    val newData = (0 until length).map(i => this (i).asInstanceOf[Number].doubleValue() + other(i).asInstanceOf[Number].doubleValue()).to(mutable.ArrayBuffer)
+    new Column(s"$name+${other.name}", newData.asInstanceOf[mutable.ArrayBuffer[Any]], DataType.Float64)
+  }
+  def +(other: Number): Column = mapDouble(_ + other.doubleValue())
+  def -(other: Column): Column = {
+    val newData = (0 until length).map(i => this (i).asInstanceOf[Number].doubleValue() - other(i).asInstanceOf[Number].doubleValue()).to(mutable.ArrayBuffer)
+    new Column(s"$name-${other.name}", newData.asInstanceOf[mutable.ArrayBuffer[Any]], DataType.Float64)
+  }
+  def -(other: Number): Column = mapDouble(_ - other.doubleValue())
+  def *(other: Column): Column = {
+    val newData = (0 until length).map(i => this (i).asInstanceOf[Number].doubleValue() * other(i).asInstanceOf[Number].doubleValue()).to(mutable.ArrayBuffer)
+    new Column(s"$name*${other.name}", newData.asInstanceOf[mutable.ArrayBuffer[Any]], DataType.Float64)
+  }
+  def *(other: Number): Column = mapDouble(_ * other.doubleValue())
+  def /(other: Column): Column = {
+    val newData = (0 until length).map(i => this (i).asInstanceOf[Number].doubleValue() / other(i).asInstanceOf[Number].doubleValue()).to(mutable.ArrayBuffer)
+    new Column(s"$name/${other.name}", newData.asInstanceOf[mutable.ArrayBuffer[Any]], DataType.Float64)
+  }
+  def /(other: Number): Column = mapDouble(_ / other.doubleValue())
+  def floorDiv(other: Number): Column = mapDouble(v => math.floor(v / other.doubleValue()))
+  def %(other: Number): Column = mapDouble(_ % other.doubleValue())
+
+  def pow(p: Double): Column = mapDouble(math.pow(_, p))
+  def sqrt: Column = mapDouble(math.sqrt)
+  def abs: Column = mapDouble(math.abs)
+  def log: Column = mapDouble(math.log)
+  def exp: Column = mapDouble(math.exp)
+  def sin: Column = mapDouble(math.sin)
+  def cos: Column = mapDouble(math.cos)
+  def tan: Column = mapDouble(math.tan)
+
+  def gt(other: Number): Column = {
+    val newData = data.map { case n: Number => n.doubleValue() > other.doubleValue(); case _ => false }.map(_.asInstanceOf[Any])
+    new Column(name, newData, DataType.Boolean)
+  }
+  def lt(other: Number): Column = {
+    val newData = data.map { case n: Number => n.doubleValue() < other.doubleValue(); case _ => false }.map(_.asInstanceOf[Any])
+    new Column(name, newData, DataType.Boolean)
+  }
+  def ge(other: Number): Column = {
+    val newData = data.map { case n: Number => n.doubleValue() >= other.doubleValue(); case _ => false }.map(_.asInstanceOf[Any])
+    new Column(name, newData, DataType.Boolean)
+  }
+  def le(other: Number): Column = {
+    val newData = data.map { case n: Number => n.doubleValue() <= other.doubleValue(); case _ => false }.map(_.asInstanceOf[Any])
+    new Column(name, newData, DataType.Boolean)
+  }
+
+  def notna: Column = {
+    val newData = data.map(_ != null).map(_.asInstanceOf[Any])
+    new Column(name, newData, DataType.Boolean)
+  }
+  def isna: Column = isNull
 }
 
 /** Statistics for a numeric column */
@@ -178,7 +312,9 @@ case class ColumnStats(
   max: Double,
   mean: Double,
   std: Double = 0.0,
-  sum: Double = 0.0
+  sum: Double = 0.0,
+  skew: Double = 0.0,
+  kurt: Double = 0.0
 )
 
 /** Factory methods for creating columns */

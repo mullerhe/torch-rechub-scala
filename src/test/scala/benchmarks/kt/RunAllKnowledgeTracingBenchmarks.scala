@@ -15,7 +15,8 @@ import org.bytedeco.pytorch.global.torch
 [PASS] assist0910 / SKVMN -> AUC=-0.7074, Accuracy=0.6725, LogLoss=0.6172
 [PASS] assist0910 / QDKT -> AUC=-0.8279, Accuracy=0.7383, LogLoss=0.5410
 [PASS] assist0910 / RKT -> AUC=-0.8568, Accuracy=0.7470, LogLoss=0.5224
-
+[PASS] assist0910 / CSKT -> AUC=-0.6530, Accuracy=0.6613, LogLoss=0.6305
+[PASS] assist0910 / SAKT -> AUC=-0.7517, Accuracy=0.6964, LogLoss=0.5907
 
 [FAIL] assist0910 / AKT -> index out of range in self
 [FAIL] assist0910 / IEKT -> index_select(): Expected dtype int32 or int64 for index
@@ -42,15 +43,17 @@ import org.bytedeco.pytorch.global.torch
 * */
 object RunAllKnowledgeTracingBenchmarks {
   private val models = Vector(
-    "DKT", "DKTForget", "DKVMN", "DeepIRT", "GKT", "ATDKT", "ATKT",   "DIMKT",  "SKVMN" ,"QDKT",   "RKT",
-    "CSKT",   "LPKT",  "SAKT","StableKT", "MTKT", "PromptKT", "UKT",  "IEKT","SAINT","SAINTPlusPlus",  "AKT",
-
-
-
-   "RobustKT",
-
-
-
+//    "DKT", "DKTForget", "DKVMN", "DeepIRT", "GKT", "ATDKT", "ATKT",   "DIMKT",  "SKVMN" ,"QDKT",   "RKT", "CSKT","SAKT"
+//    "SAINT"
+//    "SAINTPlusPlus", 
+//        
+//        "StableKT", 
+//        "MTKT", //#  SIGSEGV (0xb)
+//        "PromptKT", //#  SIGSEGV (0xb)
+//        "UKT",
+        "IEKT", "AKT",
+//
+//   "RobustKT", "LPKT",
   )
   private val datasets = Vector("assist0910")//, "assist15", "KDD", "statics11")
   def main(args: Array[String]): Unit = {

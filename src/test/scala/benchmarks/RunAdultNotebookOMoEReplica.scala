@@ -48,7 +48,7 @@ object RunAdultNotebookOMoEReplica {
     // Verify key pandas/sklearn parity points used by the notebook path.
     require(categoricalEncoded.numCols > categoricalCols.size, "OneHotEncoder did not expand columns")
 
-    val merged = categoricalEncoded.join(numericScaled, on = "id", how = JoinType.Inner)
+    val merged = categoricalEncoded.join(numericScaled, on = "id", how = "inner")// JoinType.Inner)
     require(merged.numRows == withId.numRows, s"Merged rows mismatch: ${merged.numRows} vs ${withId.numRows}")
 
     val withLabels = merged

@@ -43,10 +43,11 @@ object RunDataFrameParityChecks {
     val left = DataFrame.fromRows(Seq(Map("id" -> 1, "a" -> "L1"), Map("id" -> 2, "a" -> "L2")))
     val right = DataFrame.fromRows(Seq(Map("id" -> 1, "b" -> "R1"), Map("id" -> 1, "b" -> "R1x"), Map("id" -> 3, "b" -> "R3")))
 
-    val joined = left.join(right, on = "id", how = JoinType.Inner)
+    val joined = left.join(right, on = "id", how = "inner")// JoinType.Inner)
     require(joined.columns.contains("a"), "Join lost left column")
     require(joined.columns.contains("b"), "Join lost right column")
     require(joined.numRows == 2, s"Join row cardinality wrong: ${joined.numRows}")
+
   }
 }
 

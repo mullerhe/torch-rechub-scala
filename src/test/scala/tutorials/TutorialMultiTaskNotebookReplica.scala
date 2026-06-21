@@ -1,6 +1,7 @@
 package tutorials
 
-import benchmarks.{RunGradNormReplicaBenchmark, RunMetaBalanceReplicaBenchmark}
+import benchmarks.rec.RunGradNormReplicaBenchmark
+import benchmarks.rec.RunMetaBalanceReplicaBenchmark
 
 object TutorialMultiTaskNotebookReplica {
   def main(args: Array[String]): Unit = {

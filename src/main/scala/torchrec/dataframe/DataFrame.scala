@@ -456,6 +456,16 @@ object DataFrame {
     val header = parseCsvLine(lines.head, delimiter).map(unquoteCsvField).map(_.trim)
     val dataLines = lines.tail
 
+    // Debug: print header and first few parsed lines to help diagnose parsing issues
+    try {
+      System.err.println(s"[readCSV DEBUG] header(${header.length})=${header.take(10).mkString(",")}")
+      val sampleN = math.min(5, dataLines.length)
+      for (i <- 0 until sampleN) {
+        val pl = parseCsvLine(dataLines(i), delimiter).map(unquoteCsvField).map(_.trim)
+        System.err.println(s"[readCSV DEBUG] parsed line ${i + 1}: cols=${pl.length} sample=${pl.take(10).mkString("[", ",", "]")} ")
+      }
+    } catch { case _: Throwable => () }
+
     val columnData = mutable.LinkedHashMap[String, mutable.ArrayBuffer[Any]]()
     for (col <- header) {
       columnData(col) = mutable.ArrayBuffer(dataLines.map { line =>
@@ -472,11 +482,11 @@ object DataFrame {
       for (v <- values) {
         val s = v.toString
         dtype match {
-          case DataType.Int32 => data += s.toIntOption.getOrElse(0)
-          case DataType.Int64 => data += s.toLongOption.getOrElse(0L)
-          case DataType.Float32 => data += s.toFloatOption.getOrElse(0.0f)
-          case DataType.Float64 => data += s.toDoubleOption.getOrElse(0.0)
-          case DataType.Boolean => data += s.toBooleanOption.getOrElse(false)
+              case DataType.Int32 => data += s.toIntOption.getOrElse(0)
+              case DataType.Int64 => data += s.toLongOption.getOrElse(0L)
+              case DataType.Float32 => data += s.toFloatOption.getOrElse(Float.NaN)
+              case DataType.Float64 => data += s.toDoubleOption.getOrElse(Double.NaN)
+              case DataType.Boolean => data += s.toBooleanOption.getOrElse(false)
           case _ => data += s
         }
       }

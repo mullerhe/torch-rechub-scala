@@ -15,7 +15,20 @@ import torchrec.trainers.CTRTrainer
 import scala.collection.mutable
 import scala.io.Source
 import scala.util.Random
-
+//================ RANKING PIPELINE 1 SUMMARY ================
+//[PASS] AFN (ranking) -> AUC=0.5675, LogLoss=0.6364, Accuracy=0.7801
+//[PASS] NFM (ranking) -> AUC=0.5216, LogLoss=0.6051, Accuracy=0.7178
+//[PASS] FNN (ranking) -> AUC=0.5811, LogLoss=0.6899, Accuracy=0.5602
+//[PASS] PNN (ranking) -> AUC=0.4955, LogLoss=0.6625, Accuracy=0.7531
+//[PASS] HoFM (ranking) -> AUC=0.4387, LogLoss=3.5138, Accuracy=0.1598
+//[PASS] FNFM (ranking) -> AUC=0.4082, LogLoss=0.6646, Accuracy=0.8776
+//[PASS] LR (ranking) -> AUC=0.6193, LogLoss=2.9841, Accuracy=0.6701
+//[PASS] DeepFM (ranking) -> AUC=0.4934, LogLoss=5.5097, Accuracy=0.6037
+//[PASS] WideDeep (ranking) -> AUC=0.5784, LogLoss=2.4611, Accuracy=0.7220
+//[PASS] DCN (ranking) -> AUC=0.8880, LogLoss=0.2573, Accuracy=0.8983
+//[PASS] DCNv2 (ranking) -> AUC=0.8841, LogLoss=0.2534, Accuracy=0.8963
+//[PASS] AFM (ranking) -> AUC=0.5459, LogLoss=4.5618, Accuracy=0.5954
+//[PASS] FiBiNet (ranking) -> AUC=0.6493, LogLoss=0.6715, Accuracy=0.7988
 /**
  * Benchmark pipeline for non-sequence ranking models.
  * Tests: DeepFM, WideDeep, DCN, DCNv2, AFM, AFN, FiBiNet, NFM, FNN, PNN, HoFM, FNFM, LNN, LR

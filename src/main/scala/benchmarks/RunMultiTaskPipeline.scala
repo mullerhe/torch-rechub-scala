@@ -15,6 +15,17 @@ import scala.collection.mutable
 import scala.io.Source
 import scala.util.Random
 
+
+//================ MULTI-TASK PIPELINE SUMMARY ================
+//  [PASS] MMOE (multitask) -> fraud_AUC=0.0586, high_amount_LogLoss=0.9811, fraud_Accuracy=0.1120, high_amount_AUC=0.1901, high_amount_Accuracy=0.0560, fraud_LogLoss=0.9050
+//  [PASS] OMoE (multitask) -> fraud_AUC=0.0525, high_amount_LogLoss=0.8277, fraud_Accuracy=0.1120, high_amount_AUC=0.1783, high_amount_Accuracy=0.0560, fraud_LogLoss=0.9287
+//  [PASS] PLE (multitask) -> fraud_AUC=0.0480, high_amount_LogLoss=0.9372, fraud_Accuracy=0.1120, high_amount_AUC=0.1936, high_amount_Accuracy=0.0560, fraud_LogLoss=0.9296
+//  [PASS] AITM (multitask) -> fraud_AUC=0.0561, high_amount_LogLoss=0.9567, fraud_Accuracy=0.1120, high_amount_AUC=0.1774, high_amount_Accuracy=0.0560, fraud_LogLoss=0.8888
+//  [PASS] MetaHeac (multitask) -> fraud_AUC=0.0490, high_amount_LogLoss=0.9546, fraud_Accuracy=0.1120, high_amount_AUC=0.1876, high_amount_Accuracy=0.0560, fraud_LogLoss=0.9162
+//  [PASS] ESMM (multitask) -> fraud_AUC=0.0467, high_amount_LogLoss=0.9263, fraud_Accuracy=0.1120, high_amount_AUC=0.1514, high_amount_Accuracy=0.0560, fraud_LogLoss=0.8961
+//  [PASS] SharedBottom (multitask) -> fraud_AUC=0.0535, high_amount_LogLoss=0.9467, fraud_Accuracy=0.1120, high_amount_AUC=0.1684, high_amount_Accuracy=0.0560, fraud_LogLoss=0.9326
+//  [PASS] SingleTaskModel (multitask) -> fraud_AUC=0.0654, high_amount_LogLoss=0.9570, fraud_Accuracy=0.1120, high_amount_AUC=0.1904, high_amount_Accuracy=0.0560, fraud_LogLoss=0.9322
+
 /**
  * Multi-Task Pipeline Benchmark
  *

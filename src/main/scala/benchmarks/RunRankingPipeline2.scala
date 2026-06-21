@@ -17,6 +17,18 @@ import scala.collection.mutable
 import scala.io.Source
 import scala.util.Random
 
+//[PASS] DIEN (ranking-seq) -> AUC=0.4730, LogLoss=0.9254, Accuracy=0.1120
+//[PASS] ETA (ranking-seq) -> AUC=0.5173, LogLoss=0.7350, Accuracy=0.1100
+//[PASS] SIM (ranking-seq) -> AUC=0.4773, LogLoss=0.6963, Accuracy=0.4461
+//[PASS] BST (ranking-seq) -> AUC=0.4521, LogLoss=0.7130, Accuracy=0.3859
+//[PASS] DeepFM (ranking) -> AUC=0.5354, LogLoss=4.2734, Accuracy=0.6680
+//[PASS] xDeepFM (ranking) -> AUC=0.5453, LogLoss=5.5495, Accuracy=0.6120
+//[PASS] AutoInt (ranking) -> AUC=0.8343, LogLoss=0.2746, Accuracy=0.8880
+//[PASS] DeepFFM (ranking) -> AUC=0.4892, LogLoss=6.1050, Accuracy=0.5726
+//[PASS] EDCN (ranking) -> AUC=0.6590, LogLoss=0.8888, Accuracy=0.1120
+//[PASS] DIN (ranking-seq) -> AUC=0.5087, LogLoss=0.6523, Accuracy=0.8257
+//[PASS] LiquidNetWork (ranking-seq) -> AUC=0.5134, LogLoss=0.7010, Accuracy=0.3859
+//[PASS] MEMBA (ranking-seq) -> AUC=0.6164, LogLoss=0.6869, Accuracy=0.5705
 object RunRankingPipeline2 {
 
   System.setProperty("PYTORCH_CUDA_ALLOC_CONF", "expandable_segments:True")

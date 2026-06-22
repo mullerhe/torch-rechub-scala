@@ -232,6 +232,9 @@ class DataFrame(
     val selectedSchema = StructType(cols.flatMap(c => schema.fields.find(_.name == c)))
     new DataFrame(selectedCols, selectedSchema)
   }
+
+  /** Select columns by name (alternative syntax) */
+  def apply(cols: String*): DataFrame = select(cols: _*)
   /** Drop columns by name */
   def drop(cols: String*): DataFrame = {
     val remainingCols = columnMap.filter { case (name, _) => !cols.contains(name) }
@@ -243,7 +246,56 @@ class DataFrame(
     val names = columnMap.keys.toList.slice(range.start, range.end)
     select(names*)
   }
-  def loc(cols: String*): DataFrame = select(cols*)
+  /** loc with row index/indices - selects rows by index value (label-based, works with set_index) */
+  def loc(rowIndex: Any): DataFrame = {
+    val idxColName = schema.fields.head.name
+    val idxCol = columnMap(idxColName)
+    rowIndex match {
+      case i: Int => iloc(Seq(i))
+      case s: String =>
+        val mask = new Column("__mask__", idxCol.toSeq.map(v => v.toString == s).to(mutable.ArrayBuffer).asInstanceOf[mutable.ArrayBuffer[Any]], DataType.Boolean)
+        filter(mask)
+      case seq: Seq[_] =>
+        val mask = new Column("__mask__", idxCol.toSeq.map(v => seq.contains(v.toString)).to(mutable.ArrayBuffer).asInstanceOf[mutable.ArrayBuffer[Any]], DataType.Boolean)
+        filter(mask)
+      case r: Range =>
+        val mask = new Column("__mask__", idxCol.toSeq.map(v => r.contains(v.toString.toIntOption.getOrElse(-1))).to(mutable.ArrayBuffer).asInstanceOf[mutable.ArrayBuffer[Any]], DataType.Boolean)
+        filter(mask)
+      case _ => this
+    }
+  }
+
+  /** loc with row index and column names */
+  def loc(rowIndex: Any, cols: Seq[String]): DataFrame = {
+    loc(rowIndex).select(cols: _*)
+  }
+
+  /** loc with row index and column range (e.g., "Make" to "Size") */
+  def loc(rowIndex: Any, colRangeStart: String, colRangeEnd: String): DataFrame = {
+    val startIdx = columns.indexOf(colRangeStart)
+    val endIdx = columns.indexOf(colRangeEnd)
+    if (startIdx >= 0 && endIdx >= 0 && startIdx <= endIdx) {
+      val colNames = columns.slice(startIdx, endIdx + 1)
+      loc(rowIndex, colNames)
+    } else this
+  }
+
+  /** loc with row range (string labels) and column range */
+  def loc(rowStart: String, rowEnd: String, colRangeStart: String, colRangeEnd: String): DataFrame = {
+    val idxColName = schema.fields.head.name
+    val idxCol = columnMap(idxColName)
+    val startIdx = columns.indexOf(colRangeStart)
+    val endIdx = columns.indexOf(colRangeEnd)
+    val mask = new Column("__mask__", idxCol.toSeq.map { v =>
+      val s = v.toString
+      s >= rowStart && s <= rowEnd
+    }.to(mutable.ArrayBuffer).asInstanceOf[mutable.ArrayBuffer[Any]], DataType.Boolean)
+    val filtered = filter(mask)
+    if (startIdx >= 0 && endIdx >= 0 && startIdx <= endIdx) {
+      val colNames = columns.slice(startIdx, endIdx + 1)
+      filtered.select(colNames: _*)
+    } else filtered
+  }
   def xs(key: Any, axis: Int = 0, level: Int = 0, drop_level: Boolean = true): DataFrame = this
   def iat(row: Int, col: Int): Any = {
     val colName = columns(col)
@@ -272,12 +324,11 @@ class DataFrame(
     val newSchema = StructType(schema.fields.filter(f => newColumns.contains(f.name)))
     new DataFrame(newColumns, newSchema)
   }
-  /** Filter using a predicate function */
-  def filter(pred: Any => Boolean): DataFrame = {
-    val firstCol = columnMap.values.head
+  /** Filter using a predicate function on Row */
+  def filter(pred: Row => Boolean): DataFrame = {
     val mask = new Array[Boolean](numRows)
     for (i <- 0 until numRows) {
-      mask(i) = pred(firstCol(i))
+      mask(i) = pred(Row.fromIndex(this, i))
     }
     val newColumns = columnMap.map { case (name, col) =>
       (name, filterColumn(col, mask))
@@ -285,6 +336,7 @@ class DataFrame(
     val newSchema = StructType(schema.fields.filter(f => newColumns.contains(f.name)))
     new DataFrame(newColumns, newSchema)
   }
+
   private def filterColumn(col: Column, mask: Array[Boolean]): Column = {
     val newData = mutable.ArrayBuffer[Any]()
     for (i <- 0 until col.length) {
@@ -357,6 +409,20 @@ class DataFrame(
 
   /** Select multiple rows by range */
   def iloc(range: Range): DataFrame = iloc(range.toIndexedSeq)
+
+  /** Select rows and columns by index sequences */
+  def iloc(rowIndices: Seq[Int], colIndices: Seq[Int]): DataFrame = {
+    val colNames = colIndices.map(columns(_))
+    val selectedCols = columnMap.filter { case (name, _) => colNames.contains(name) }
+    val newColumns = selectedCols.map { case (name, col) =>
+      val newData = mutable.ArrayBuffer[Any]()
+      for (i <- rowIndices) newData += col(i)
+      (name, new Column(name, newData, col.dtype))
+    }
+    val newSchema = StructType(colNames.map(c => schema.fields.find(_.name == c).get))
+    new DataFrame(newColumns, newSchema)
+  }
+
   def shift(periods: Int = 1, fill_value: Any = null, freq: Any = null, axis: Int = 0): DataFrame = {
     val newCols = columnMap.map { case (name, col) =>
       val newData = (0 until numRows).map { i =>

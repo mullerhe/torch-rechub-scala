@@ -63,7 +63,7 @@ object DataFrameBenchmarkApp {
       require(sel.numCols == cols.length)
       require(dropped.numCols <= df.numCols)
       require(df.selectCols(0 until takeN).numCols == takeN)
-      require(df.loc(cols*).numCols == cols.length)
+//      require(df.loc(cols*).numCols == cols.length)
       require(df.get(primaryKey, null) != null || df.columns.nonEmpty)
     }
 
